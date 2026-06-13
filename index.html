@@ -1,0 +1,153 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>My Heart - Financial Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+Khmer:wght@400;600;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['"Inter"', '"Noto Sans Khmer"', 'sans-serif'],
+              khmer: ['"Noto Sans Khmer"', 'sans-serif'],
+            },
+            colors: {
+              emerald: {
+                50: '#ecfdf5',
+                100: '#d1fae5',
+                200: '#a7f3d0',
+                300: '#6ee7b7',
+                400: '#34d399',
+                500: '#10b981', 
+                600: '#059669',
+                700: '#047857',
+                800: '#065f46',
+                900: '#064e3b',
+              },
+              dark: {
+                bg: '#0d1117',
+                card: '#161b22',
+                border: '#30363d',
+                textPrimary: '#FAFAFA',
+                textSecondary: '#F5F5F5',
+              }
+            },
+            keyframes: {
+              shake: {
+                '0%, 100%': { transform: 'translateX(0)' },
+                '10%, 30%, 50%, 70%, 90%': { transform: 'translateX(-4px)' },
+                '20%, 40%, 60%, 80%': { transform: 'translateX(4px)' },
+              },
+              'slide-up': {
+                '0%': { transform: 'translateY(20px)', opacity: '0' },
+                '100%': { transform: 'translateY(0)', opacity: '1' },
+              }
+            },
+            animation: {
+              shake: 'shake 0.4s cubic-bezier(.36,.07,.19,.97) both',
+              'slide-up': 'slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      :root {
+        color-scheme: light;
+        font-size: 16px; /* Base 1rem = 16px */
+      }
+
+      .dark {
+        color-scheme: dark;
+      }
+      
+      body {
+        font-family: 'Inter', 'Noto Sans Khmer', sans-serif;
+        background-color: #f3f4f6;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .dark body {
+        background-color: #0d1117;
+      }
+
+      /* Script-specific Typography Overrides per Spec */
+      
+      /* Default English Scale (applied via Tailwind leading- classes in utils.ts) */
+      
+      /* Khmer Overrides [lang="km"] */
+      [lang="km"] {
+        font-family: 'Noto Sans Khmer', sans-serif !important;
+        letter-spacing: 0em !important;
+      }
+
+      /* H1 Khmer */
+      .type-h1[lang="km"] { line-height: 1.875rem !important; }
+      /* H2 Khmer */
+      .type-h2[lang="km"] { line-height: 1.625rem !important; }
+      /* H3 Khmer */
+      .type-h3[lang="km"] { line-height: 1.5rem !important; }
+      /* Body Khmer */
+      .type-body[lang="km"] { line-height: 1.625rem !important; }
+      /* Caption Khmer */
+      .type-caption[lang="km"] { line-height: 1.375rem !important; }
+
+      /* Custom scrollbar */
+      .scrollbar-thin::-webkit-scrollbar { width: 6px; height: 6px; }
+      .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+      .scrollbar-thin::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 20px; }
+      .dark .scrollbar-thin::-webkit-scrollbar-thumb { background-color: #30363d; }
+
+      textarea { resize: none !important; }
+
+      /* Hide native date picker icon */
+      input[type="date"]::-webkit-calendar-picker-indicator,
+      input[type="datetime-local"]::-webkit-calendar-picker-indicator,
+      input[type="month"]::-webkit-calendar-picker-indicator {
+        background: transparent;
+        bottom: 0;
+        color: transparent;
+        cursor: pointer;
+        height: auto;
+        left: 0;
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: auto;
+      }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "xlsx": "https://esm.sh/xlsx@^0.18.5",
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.13.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.563.0",
+    "recharts": "https://esm.sh/recharts@^3.7.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "path": "https://esm.sh/path@^0.12.7",
+    "url": "https://esm.sh/url@^0.11.4",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "clsx": "https://esm.sh/clsx@^2.1.1",
+    "tailwind-merge": "https://esm.sh/tailwind-merge@^3.4.0",
+    "react-router": "https://esm.sh/react-router@^7.13.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

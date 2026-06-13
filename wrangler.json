@@ -1,0 +1,12 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "my-heart",
+  "pages_build_output_dir": "dist",
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "my-heart-db",
+      "database_id": "a45b4d1f-92f9-426c-8b40-4d60ce4208f1"
+    }
+  ]
+}
