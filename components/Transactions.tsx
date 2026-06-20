@@ -482,7 +482,7 @@ const Pagination: React.FC<{
 export const Transactions: React.FC = () => {
     const { 
         transactions, accounts, chartOfAccounts, settings, t, 
-        addTransaction, updateTransaction, deleteTransaction, deleteTransactions, can 
+        addTransaction, addTransactions, updateTransaction, deleteTransaction, deleteTransactions, can 
     } = useApp();
     const location = useLocation();
     const navigate = useNavigate();
@@ -723,6 +723,7 @@ export const Transactions: React.FC = () => {
         let success = 0;
         let failed = 0;
         const errors: string[] = [];
+        const newTransactions: any[] = [];
 
         for (const [index, row] of data.entries()) {
             const rowNum = index + 2;
@@ -769,14 +770,28 @@ export const Transactions: React.FC = () => {
                     continue;
                 }
 
-                const dateObj = new Date(dateVal);
+                let dateObj = new Date(dateVal);
                 if (isNaN(dateObj.getTime())) {
                     failed++;
                     errors.push(`Row ${rowNum}: Invalid Date.`);
                     continue;
                 }
 
-                addTransaction({
+                // The xlsx library parses local Excel dates as UTC.
+                // We extract the UTC components and construct a matching local date to prevent timezone shifts (e.g. 7:00 AM bugs).
+                const isMidnightUTC = dateObj.getUTCHours() === 0 && dateObj.getUTCMinutes() === 0;
+                const now = new Date();
+                
+                dateObj = new Date(
+                    dateObj.getUTCFullYear(),
+                    dateObj.getUTCMonth(),
+                    dateObj.getUTCDate(),
+                    isMidnightUTC ? now.getHours() : dateObj.getUTCHours(),
+                    isMidnightUTC ? now.getMinutes() : dateObj.getUTCMinutes(),
+                    isMidnightUTC ? now.getSeconds() : dateObj.getUTCSeconds()
+                );
+
+                newTransactions.push({
                     type: typeStr as TransactionType,
                     category: coa.name,
                     accountId: account.id,
@@ -786,12 +801,17 @@ export const Transactions: React.FC = () => {
                     note: note || '',
                     createdBy: t('imported')
                 });
-                success++;
             } catch (e) {
                 failed++;
                 errors.push(`Row ${rowNum}: Unexpected error: ${e}`);
             }
         }
+
+        if (newTransactions.length > 0) {
+            addTransactions(newTransactions);
+            success = newTransactions.length;
+        }
+
         return { success, failed, errors };
     };
 

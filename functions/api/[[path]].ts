@@ -370,24 +370,52 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       // SYNC: transactions
       if (entity === 'transactions') {
         if (action === 'create') {
-          await env.DB.prepare(
-            `INSERT INTO transactions (
-              id, date, type, category, accountId, amount, currency, note, defaultAmount, goalId, createdBy, isInternalTransfer
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-          ).bind(
-            data.id,
-            data.date,
-            data.type,
-            data.category,
-            data.accountId,
-            data.amount,
-            data.currency,
-            data.note || null,
-            data.defaultAmount || null,
-            data.goalId || null,
-            data.createdBy || null,
-            data.isInternalTransfer ? 1 : 0
-          ).run();
+          if (Array.isArray(data)) {
+            // Batch create transactions
+            const stmts = data.map((item: any) => env.DB.prepare(
+              `INSERT INTO transactions (
+                id, date, type, category, accountId, amount, currency, note, defaultAmount, goalId, createdBy, isInternalTransfer
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            ).bind(
+              item.id,
+              item.date,
+              item.type,
+              item.category,
+              item.accountId,
+              item.amount,
+              item.currency,
+              item.note || null,
+              item.defaultAmount || null,
+              item.goalId || null,
+              item.createdBy || null,
+              item.isInternalTransfer ? 1 : 0
+            ));
+            
+            // D1 batching supports up to 100 statements per request, so chunk it just in case
+            for (let i = 0; i < stmts.length; i += 100) {
+                await env.DB.batch(stmts.slice(i, i + 100));
+            }
+          } else {
+            // Single create transaction
+            await env.DB.prepare(
+              `INSERT INTO transactions (
+                id, date, type, category, accountId, amount, currency, note, defaultAmount, goalId, createdBy, isInternalTransfer
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            ).bind(
+              data.id,
+              data.date,
+              data.type,
+              data.category,
+              data.accountId,
+              data.amount,
+              data.currency,
+              data.note || null,
+              data.defaultAmount || null,
+              data.goalId || null,
+              data.createdBy || null,
+              data.isInternalTransfer ? 1 : 0
+            ).run();
+          }
         } else if (action === 'update') {
           await env.DB.prepare(
             `UPDATE transactions SET 

@@ -1122,6 +1122,7 @@ interface AppContextType {
     setDefaultAccount: (id: string) => void;
     deleteAccount: (id: string) => void;
     addTransaction: (t: any) => void;
+    addTransactions: (txs: any[]) => void;
     updateTransaction: (t: any) => void;
     deleteTransaction: (id: string) => void;
     deleteTransactions: (ids: string[]) => void;
@@ -1251,8 +1252,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             });
             if (res.ok) {
                 const data = await res.json();
-                if (data.accounts) setAccounts(data.accounts);
-                if (data.transactions) setTransactions(data.transactions);
+                
+                let loadedAccounts = data.accounts || [];
+                const loadedTransactions = data.transactions || [];
+
+                // Self-healing balances recalculation
+                const calculatedBalances: Record<string, number> = {};
+                loadedTransactions.forEach((tx: any) => {
+                    if (!calculatedBalances[tx.accountId]) calculatedBalances[tx.accountId] = 0;
+                    calculatedBalances[tx.accountId] += tx.type === 'Income' ? tx.amount : -tx.amount;
+                });
+
+                loadedAccounts = loadedAccounts.map((acc: any) => {
+                    const correctBalance = calculatedBalances[acc.id] || 0;
+                    if (Math.abs(acc.balance - correctBalance) > 0.001) {
+                        const updatedAcc = { ...acc, balance: correctBalance };
+                        // Sync corrected balance to database automatically
+                        setTimeout(() => syncWithCloudflare('accounts', 'update', updatedAcc), 500);
+                        return updatedAcc;
+                    }
+                    return acc;
+                });
+
+                if (data.accounts) setAccounts(loadedAccounts);
+                if (data.transactions) setTransactions(loadedTransactions);
                 if (data.budgets) setBudgets(data.budgets);
                 if (data.budgetTemplates) setBudgetTemplates(data.budgetTemplates);
                 if (data.goals) setGoals(data.goals);
@@ -1390,6 +1413,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             updateAccount(updatedAcc);
         }
         syncWithCloudflare('transactions', 'create', newTx);
+    };
+
+    const addTransactions = (txs: any[]) => {
+        const newTxs = txs.map(t => ({ ...t, id: Math.random().toString(36).substr(2, 9), createdBy: currentUser?.name || t.createdBy }));
+        setTransactions(prev => [...prev, ...newTxs]);
+
+        const balanceChanges = new Map<string, number>();
+        newTxs.forEach(tx => {
+            const change = tx.type === TransactionType.INCOME ? tx.amount : -tx.amount;
+            balanceChanges.set(tx.accountId, (balanceChanges.get(tx.accountId) || 0) + change);
+        });
+
+        setAccounts(prev => {
+            const nextAccounts = [...prev];
+            balanceChanges.forEach((change, accountId) => {
+                const accIndex = nextAccounts.findIndex(a => a.id === accountId);
+                if (accIndex !== -1) {
+                    nextAccounts[accIndex] = { ...nextAccounts[accIndex], balance: nextAccounts[accIndex].balance + change };
+                }
+            });
+            return nextAccounts;
+        });
+
+        balanceChanges.forEach((change, accountId) => {
+             const acc = accounts.find(a => a.id === accountId);
+             if (acc) {
+                 syncWithCloudflare('accounts', 'update', { ...acc, balance: acc.balance + change });
+             }
+        });
+
+        // Sync new transactions to Cloudflare as a batch array
+        if (newTxs.length > 0) {
+            syncWithCloudflare('transactions', 'create', newTxs);
+        }
     };
 
     const updateTransaction = (t: any) => {
@@ -1716,7 +1773,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             if (!response.ok) throw new Error("Failed to fetch rates");
 
             const data = await response.json();
-            
+
             const filteredRates: Record<string, number> = {};
             currencies.forEach(c => {
                 if (data.rates[c]) {
@@ -1750,7 +1807,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         currentUser, settings, accounts, transactions, budgets, goals, assets, liabilities, chartOfAccounts, budgetTemplates, users, roles,
         login, logout, t, updateSettings, can,
         addAccount, updateAccount, setDefaultAccount, deleteAccount,
-        addTransaction, updateTransaction, deleteTransaction, deleteTransactions,
+        addTransaction, addTransactions, updateTransaction, deleteTransaction, deleteTransactions,
         addBudget, updateBudget, deleteBudget,
         addBudgetTemplate, updateBudgetTemplate, deleteBudgetTemplate,
         addGoal, updateGoal, deleteGoal,

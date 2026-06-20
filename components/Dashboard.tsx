@@ -180,16 +180,32 @@ const KPICard: React.FC<{
     );
   }
 
+  const colorClasses = {
+      emerald: 'bg-emerald-50/50 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-800/50 text-emerald-700 dark:text-emerald-400',
+      red: 'bg-red-50/50 dark:bg-red-900/10 border-red-100 dark:border-red-800/50 text-red-700 dark:text-red-400',
+      blue: 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-100 dark:border-blue-800/50 text-blue-700 dark:text-blue-400',
+      purple: 'bg-purple-50/50 dark:bg-purple-900/10 border-purple-100 dark:border-purple-800/50 text-purple-700 dark:text-purple-400',
+      yellow: 'bg-yellow-50/50 dark:bg-yellow-900/10 border-yellow-100 dark:border-yellow-800/50 text-yellow-700 dark:text-yellow-400'
+  };
+
+  const titleColors = {
+      emerald: 'text-emerald-600 dark:text-emerald-400',
+      red: 'text-red-600 dark:text-red-400',
+      blue: 'text-blue-600 dark:text-blue-400',
+      purple: 'text-purple-600 dark:text-purple-400',
+      yellow: 'text-yellow-600 dark:text-yellow-400'
+  };
+
   return (
-    <div className={cn(CLASSES.card, "w-full h-full rounded-xl md:rounded-xl transition-all cursor-default relative group p-3 flex flex-col justify-between hover:border-emerald-500/40 shadow-sm bg-white dark:bg-dark-card dark:border-gray-700")}>
-      <div className="w-full flex justify-between items-start">
-          <div className="flex items-center gap-1 min-w-0 flex-1">
-              <Typography variant="caption" className="truncate transition-colors font-medium text-gray-500 dark:text-gray-400 text-xs md:text-sm">{title}</Typography>
-              {tooltip && <TooltipButton tooltip={tooltip} />}
-          </div>
+    <div className={cn(CLASSES.card, "w-full h-full p-3 rounded-xl md:rounded-xl border shadow-sm flex flex-col justify-center transition-all", colorClasses[color])}>
+      <div className="flex items-center mb-0.5">
+          <Typography variant="caption" className={cn("font-medium text-xs md:text-sm block", titleColors[color])}>
+              {title}
+          </Typography>
+          {tooltip && <TooltipButton tooltip={tooltip} />}
       </div>
-      <div className="mt-2">
-        <Typography variant="h2" className="break-all tabular-nums font-semibold leading-none tracking-tight text-base md:text-lg text-gray-900 dark:text-white">
+      <div>
+        <Typography variant="h2" className="text-base md:text-lg font-semibold tabular-nums tracking-tight leading-none break-all">
           {formatCurrency(amount, currency, lang)}
         </Typography>
         {trend !== undefined && !isNaN(trend) && (
@@ -198,82 +214,12 @@ const KPICard: React.FC<{
                     {trend >= 0 ? <TrendingUp size={12} className="mr-1"/> : <TrendingDown size={12} className="mr-1"/>}
                     {Math.abs(trend).toFixed(2)}%
                 </span>
-                {trendLabel && (
-                    <span className="text-[10px] text-gray-400 font-medium truncate">
-                        in {trendLabel}
-                    </span>
-                )}
+                {trendLabel && <span className="text-[10px] opacity-70 truncate">in {trendLabel}</span>}
             </div>
         )}
       </div>
     </div>
   );
-};
-
-const CombinedMobileKPICard: React.FC<{
-    income: number;
-    expense: number;
-    incomeTrend?: number;
-    expenseTrend?: number;
-    trendLabel?: string;
-    currency: Currency;
-    lang: string;
-    t: (key: string) => string;
-}> = ({ income, expense, incomeTrend, expenseTrend, trendLabel, currency, lang, t }) => {
-    return (
-        <div className={cn(CLASSES.card, "w-full p-3 flex flex-row items-start justify-between rounded-xl md:rounded-xl shadow-sm bg-white dark:bg-dark-card border border-gray-200 dark:border-gray-700 hover:border-emerald-500/40 transition-all")}>
-            {/* Income Section */}
-            <div className="flex-1 flex flex-col gap-1.5">
-                <div className="flex items-center gap-1">
-                    <div className="p-1 rounded-md bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 shrink-0">
-                        <TrendingUp size={12} />
-                    </div>
-                    <Typography variant="caption" className="font-medium text-gray-800 dark:text-gray-200 text-xs md:text-sm">{t('total_income')}</Typography>
-                    <TooltipButton tooltip={t('total_income_tooltip')} />
-                </div>
-                <div>
-                    <Typography variant="h2" className="break-all tabular-nums font-semibold leading-none tracking-tight text-base md:text-lg text-emerald-600 dark:text-emerald-400">
-                        {formatCurrency(income, currency, lang)}
-                    </Typography>
-                    {incomeTrend !== undefined && !isNaN(incomeTrend) && (
-                        <div className="flex items-center flex-wrap gap-1 mt-1">
-                            <span className={cn("text-[10px] font-bold", incomeTrend >= 0 ? "text-emerald-600" : "text-red-600")}>
-                                {incomeTrend >= 0 ? '↑' : '↓'} {Math.abs(incomeTrend).toFixed(2)}%
-                            </span>
-                            {trendLabel && <span className="text-[10px] text-gray-400">in {trendLabel}</span>}
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* Vertical Divider */}
-            <div className="w-px self-stretch bg-gray-100 dark:bg-gray-800 mx-2 my-1" />
-
-            {/* Expense Section */}
-            <div className="flex-1 flex flex-col items-end text-right gap-1.5">
-                <div className="flex items-center gap-1 justify-end">
-                    <TooltipButton tooltip={t('total_expenses_tooltip')} />
-                    <Typography variant="caption" className="font-medium text-gray-800 dark:text-gray-200 text-xs md:text-sm">{t('total_expenses')}</Typography>
-                    <div className="p-1 rounded-md bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 shrink-0">
-                        <TrendingDown size={12} />
-                    </div>
-                </div>
-                <div>
-                    <Typography variant="h2" className="break-all tabular-nums font-semibold leading-none tracking-tight text-base md:text-lg text-red-600 dark:text-red-400">
-                        {formatCurrency(expense, currency, lang)}
-                    </Typography>
-                    {expenseTrend !== undefined && !isNaN(expenseTrend) && (
-                        <div className="flex items-center flex-wrap gap-1 mt-1 justify-end">
-                            <span className={cn("text-[10px] font-bold", expenseTrend >= 0 ? "text-red-600" : "text-emerald-600")}>
-                                {expenseTrend >= 0 ? '↑' : '↓'} {Math.abs(expenseTrend).toFixed(2)}%
-                            </span>
-                            {trendLabel && <span className="text-[10px] text-gray-400">in {trendLabel}</span>}
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
 };
 
 export const Dashboard: React.FC = () => {
@@ -521,9 +467,9 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      <ResponsiveGrid className="grid-cols-1 md:grid-cols-3 gap-2 md:gap-4 lg:gap-5 mb-2" variant="dense">
+      <ResponsiveGrid className="grid-cols-2 md:grid-cols-3 gap-2 md:gap-4 lg:gap-5 mb-2" variant="dense">
         {/* Total Balance - Always Visible */}
-        <div className="col-span-1">
+        <div className="col-span-2 md:col-span-1">
             <KPICard 
                 variant="primary" 
                 title={t('total_balance')} 
@@ -535,23 +481,9 @@ export const Dashboard: React.FC = () => {
                 lang={settings.language} 
             />
         </div>
-        
-        {/* Mobile View: Combined Card */}
-        <div className="col-span-1 md:hidden">
-            <CombinedMobileKPICard 
-                income={rangeIncome} 
-                expense={rangeExpense} 
-                incomeTrend={incomeTrend} 
-                expenseTrend={expenseTrend} 
-                trendLabel={prevPeriodLabel}
-                currency={settings.defaultCurrency} 
-                lang={settings.language} 
-                t={t} 
-            />
-        </div>
 
-        {/* Desktop View: Separate Cards */}
-        <div className="col-span-1 hidden md:block">
+        {/* Income and Expenses Cards */}
+        <div className="col-span-1">
             <KPICard 
                 title={t('total_income')} 
                 amount={rangeIncome} 
@@ -563,7 +495,7 @@ export const Dashboard: React.FC = () => {
                 tooltip={t('total_income_tooltip')}
             />
         </div>
-        <div className="col-span-1 hidden md:block">
+        <div className="col-span-1">
             <KPICard 
                 title={t('total_expenses')} 
                 amount={rangeExpense} 
