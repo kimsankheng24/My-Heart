@@ -1033,7 +1033,7 @@ export const Budgets: React.FC = () => {
                 if (editingBudget) {
                     updateBudget({ ...editingBudget, ...budgetData } as Budget);
                 } else {
-                    addBudget(budgetData);
+                    const budgetsToCreate: any[] = [budgetData];
                     
                     // Repeat Logic
                     if (formData.repeatFrequency !== 'None') {
@@ -1056,11 +1056,15 @@ export const Budgets: React.FC = () => {
                         }
                         
                         if (nextMonthKey) {
-                            addBudget({
+                            budgetsToCreate.push({
                                 ...budgetData,
                                 month: nextMonthKey
                             });
                         }
+                    }
+
+                    if (budgetsToCreate.length > 0) {
+                        addBudgets(budgetsToCreate);
                     }
 
                     if (formData.saveTemplate && addBudgetTemplate) {
