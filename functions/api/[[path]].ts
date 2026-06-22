@@ -462,8 +462,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
               item.amount,
               item.currency,
               item.month,
-              item.spent,
-              item.status,
+              item.spent || 0,
+              item.status || 'Active',
               item.rollover ? 1 : 0,
               item.alertThreshold || 90
             ));
@@ -479,8 +479,8 @@ export const onRequest: PagesFunction<Env> = async (context) => {
               data.amount,
               data.currency,
               data.month,
-              data.spent,
-              data.status,
+              data.spent || 0,
+              data.status || 'Active',
               data.rollover ? 1 : 0,
               data.alertThreshold || 90
             ).run();
