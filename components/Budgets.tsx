@@ -370,6 +370,7 @@ export const Budgets: React.FC = () => {
         transactions = [], 
         budgetTemplates = [], 
         addBudget, 
+        addBudgets, 
         updateBudget, 
         deleteBudget, 
         addBudgetTemplate, 
@@ -847,8 +848,9 @@ export const Budgets: React.FC = () => {
         const reader = new FileReader();
         reader.onload = async (evt) => {
             try {
-                const bstr = evt.target?.result;
-                const wb = XLSX.read(bstr, { type: 'binary' });
+                const arrayBuffer = evt.target?.result as ArrayBuffer;
+                const dataArray = new Uint8Array(arrayBuffer);
+                const wb = XLSX.read(dataArray, { type: 'array', cellDates: true });
                 const wsname = wb.SheetNames[0];
                 const ws = wb.Sheets[wsname];
                 const data = XLSX.utils.sheet_to_json(ws);
@@ -856,6 +858,7 @@ export const Budgets: React.FC = () => {
                 let successCount = 0;
                 let failedCount = 0;
                 const importErrors: string[] = [];
+                const allNewBudgets: any[] = [];
 
                 for (let i = 0; i < data.length; i++) {
                     const row: any = data[i];
@@ -868,9 +871,27 @@ export const Budgets: React.FC = () => {
                         }
 
                         // Validate Month format (MM/YYYY)
-                        const monthStr = String(row['Month']);
-                        if (!/^\d{2}\/\d{4}$/.test(monthStr)) {
-                            throw new Error(`Row ${rowNum}: Invalid Month format. Expected MM/YYYY, got ${monthStr}.`);
+                        let monthStr = '';
+                        const rawMonth = row['Month'];
+                        if (rawMonth instanceof Date) {
+                            const monthVal = String(rawMonth.getUTCMonth() + 1).padStart(2, '0');
+                            const yearVal = rawMonth.getUTCFullYear();
+                            monthStr = `${monthVal}/${yearVal}`;
+                        } else {
+                            const valStr = String(rawMonth).trim();
+                            if (/^\d{1,2}\/\d{4}$/.test(valStr)) {
+                                const [mPart, yPart] = valStr.split('/');
+                                monthStr = `${mPart.padStart(2, '0')}/${yPart}`;
+                            } else {
+                                const parsedDate = new Date(valStr);
+                                if (!isNaN(parsedDate.getTime())) {
+                                    const monthVal = String(parsedDate.getUTCMonth() + 1).padStart(2, '0');
+                                    const yearVal = parsedDate.getUTCFullYear();
+                                    monthStr = `${monthVal}/${yearVal}`;
+                                } else {
+                                    throw new Error(`Row ${rowNum}: Invalid Month format. Expected MM/YYYY, got ${valStr}.`);
+                                }
+                            }
                         }
 
                         // Validate Account Code
@@ -901,8 +922,7 @@ export const Budgets: React.FC = () => {
                             rollover: false
                         };
 
-                        // Add budget
-                        addBudget(budgetData);
+                        allNewBudgets.push(budgetData);
 
                         // Handle Repeat
                         const repeat = String(row['Repeat'] || 'None');
@@ -925,7 +945,7 @@ export const Budgets: React.FC = () => {
                             }
 
                             if (nextMonthKey) {
-                                addBudget({
+                                allNewBudgets.push({
                                     ...budgetData,
                                     month: nextMonthKey
                                 });
@@ -939,6 +959,10 @@ export const Budgets: React.FC = () => {
                     }
                 }
 
+                if (allNewBudgets.length > 0) {
+                    addBudgets(allNewBudgets);
+                }
+
                 setImportResults({ success: successCount, failed: failedCount, errors: importErrors });
                 setIsImportModalOpen(true);
             } catch (error) {
@@ -950,7 +974,7 @@ export const Budgets: React.FC = () => {
                 }
             }
         };
-        reader.readAsBinaryString(file);
+        reader.readAsArrayBuffer(file);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {

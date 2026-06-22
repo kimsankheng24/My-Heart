@@ -1127,6 +1127,7 @@ interface AppContextType {
     deleteTransaction: (id: string) => void;
     deleteTransactions: (ids: string[]) => void;
     addBudget: (b: any) => void;
+    addBudgets: (bs: any[]) => void;
     updateBudget: (b: any) => void;
     deleteBudget: (id: string) => void;
     addBudgetTemplate: (t: any) => void;
@@ -1543,6 +1544,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setBudgets(prev => [...prev, newBudget]);
         syncWithCloudflare('budgets', 'create', newBudget);
     };
+    const addBudgets = (bs: any[]) => {
+        const newBudgets = bs.map(b => ({ ...b, id: Math.random().toString(36).substr(2, 9) }));
+        setBudgets(prev => [...prev, ...newBudgets]);
+        if (newBudgets.length > 0) {
+            syncWithCloudflare('budgets', 'create', newBudgets);
+        }
+    };
     const updateBudget = (b: any) => {
         setBudgets(prev => prev.map(item => item.id === b.id ? b : item));
         syncWithCloudflare('budgets', 'update', b);
@@ -1808,7 +1816,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         login, logout, t, updateSettings, can,
         addAccount, updateAccount, setDefaultAccount, deleteAccount,
         addTransaction, addTransactions, updateTransaction, deleteTransaction, deleteTransactions,
-        addBudget, updateBudget, deleteBudget,
+        addBudget, addBudgets, updateBudget, deleteBudget,
         addBudgetTemplate, updateBudgetTemplate, deleteBudgetTemplate,
         addGoal, updateGoal, deleteGoal,
         addAsset, updateAssetValuation, deleteAsset, markAssetAsSold,

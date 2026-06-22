@@ -453,19 +453,38 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       // SYNC: budgets
       if (entity === 'budgets') {
         if (action === 'create') {
-          await env.DB.prepare(
-            'INSERT INTO budgets (id, category, amount, currency, month, spent, status, rollover, alertThreshold) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-          ).bind(
-            data.id,
-            data.category,
-            data.amount,
-            data.currency,
-            data.month,
-            data.spent,
-            data.status,
-            data.rollover ? 1 : 0,
-            data.alertThreshold || 90
-          ).run();
+          if (Array.isArray(data)) {
+            const stmts = data.map((item: any) => env.DB.prepare(
+              'INSERT INTO budgets (id, category, amount, currency, month, spent, status, rollover, alertThreshold) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            ).bind(
+              item.id,
+              item.category,
+              item.amount,
+              item.currency,
+              item.month,
+              item.spent,
+              item.status,
+              item.rollover ? 1 : 0,
+              item.alertThreshold || 90
+            ));
+            for (let i = 0; i < stmts.length; i += 100) {
+              await env.DB.batch(stmts.slice(i, i + 100));
+            }
+          } else {
+            await env.DB.prepare(
+              'INSERT INTO budgets (id, category, amount, currency, month, spent, status, rollover, alertThreshold) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            ).bind(
+              data.id,
+              data.category,
+              data.amount,
+              data.currency,
+              data.month,
+              data.spent,
+              data.status,
+              data.rollover ? 1 : 0,
+              data.alertThreshold || 90
+            ).run();
+          }
         } else if (action === 'update') {
           await env.DB.prepare(
             'UPDATE budgets SET category = ?, amount = ?, currency = ?, month = ?, spent = ?, status = ?, rollover = ?, alertThreshold = ? WHERE id = ?'
