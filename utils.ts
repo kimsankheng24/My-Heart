@@ -229,3 +229,53 @@ export function formatDateTime(dateStr: string, lang: string = 'en'): string {
     return dateStr;
   }
 }
+
+export function computeMaturityDate(startDateStr: string, termMonths: number): string {
+  if (!startDateStr) return '';
+  try {
+    const parts = startDateStr.split('-');
+    if (parts.length === 3) {
+      const y = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const d = parseInt(parts[2], 10);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        const target = new Date(y, m - 1 + Number(termMonths), d);
+        const targetYear = target.getFullYear();
+        const targetMonth = String(target.getMonth() + 1).padStart(2, '0');
+        const targetDay = String(target.getDate()).padStart(2, '0');
+        return `${targetYear}-${targetMonth}-${targetDay}`;
+      }
+    }
+    const parsed = new Date(startDateStr);
+    if (isNaN(parsed.getTime())) return '';
+    parsed.setMonth(parsed.getMonth() + Number(termMonths));
+    return parsed.toISOString().slice(0, 10);
+  } catch (e) {
+    return '';
+  }
+}
+
+export function computeTermDepositFinancials(
+  depositAmount: number,
+  interestRateAnnual: number,
+  termMonths: number,
+  taxRatePercent: number = 6
+) {
+  const p = isNaN(depositAmount) || depositAmount < 0 ? 0 : depositAmount;
+  const r = isNaN(interestRateAnnual) || interestRateAnnual < 0 ? 0 : interestRateAnnual;
+  const m = isNaN(termMonths) || termMonths < 0 ? 0 : termMonths;
+  const taxRate = isNaN(taxRatePercent) || taxRatePercent < 0 ? 0 : taxRatePercent;
+
+  const totalInterest = p * (r / 100) * (m / 12);
+  const taxOnInterest = totalInterest * (taxRate / 100);
+  const netInterest = totalInterest - taxOnInterest;
+  const totalPrincipalAndInterest = p + netInterest;
+
+  return {
+    depositAmount: p,
+    totalInterest,
+    taxOnInterest,
+    netInterest,
+    totalPrincipalAndInterest
+  };
+}

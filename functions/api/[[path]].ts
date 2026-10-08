@@ -184,10 +184,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       // 4. Accounts
       const rawAccounts = await fetchAll('accounts');
-      const accounts = rawAccounts.map(a => ({
-        ...a,
-        owner: a.owner || undefined
-      }));
+      const accounts = rawAccounts.map(a => {
+        let termDeposit = undefined;
+        if (a.termDeposit) {
+          try {
+            termDeposit = typeof a.termDeposit === 'string' ? JSON.parse(a.termDeposit) : a.termDeposit;
+          } catch (e) {}
+        }
+        return {
+          ...a,
+          owner: a.owner || undefined,
+          termDeposit
+        };
+      });
 
       // 5. Chart of Accounts
       const chartOfAccounts = await fetchAll('chart_of_accounts');
@@ -353,14 +362,41 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       // SYNC: accounts
       if (entity === 'accounts') {
+        const termDepositJson = data.termDeposit ? JSON.stringify(data.termDeposit) : null;
         if (action === 'create') {
-          await env.DB.prepare(
-            'INSERT INTO accounts (id, name, type, balance, currency, note, status, owner) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-          ).bind(data.id, data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null).run();
+          try {
+            await env.DB.prepare(
+              'INSERT INTO accounts (id, name, type, balance, currency, note, status, owner, termDeposit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            ).bind(data.id, data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null, termDepositJson).run();
+          } catch (err: any) {
+            try {
+              await env.DB.prepare('ALTER TABLE accounts ADD COLUMN termDeposit TEXT').run();
+              await env.DB.prepare(
+                'INSERT INTO accounts (id, name, type, balance, currency, note, status, owner, termDeposit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+              ).bind(data.id, data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null, termDepositJson).run();
+            } catch (fallbackErr) {
+              await env.DB.prepare(
+                'INSERT INTO accounts (id, name, type, balance, currency, note, status, owner) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+              ).bind(data.id, data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null).run();
+            }
+          }
         } else if (action === 'update') {
-          await env.DB.prepare(
-            'UPDATE accounts SET name = ?, type = ?, balance = ?, currency = ?, note = ?, status = ?, owner = ? WHERE id = ?'
-          ).bind(data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null, data.id).run();
+          try {
+            await env.DB.prepare(
+              'UPDATE accounts SET name = ?, type = ?, balance = ?, currency = ?, note = ?, status = ?, owner = ?, termDeposit = ? WHERE id = ?'
+            ).bind(data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null, termDepositJson, data.id).run();
+          } catch (err: any) {
+            try {
+              await env.DB.prepare('ALTER TABLE accounts ADD COLUMN termDeposit TEXT').run();
+              await env.DB.prepare(
+                'UPDATE accounts SET name = ?, type = ?, balance = ?, currency = ?, note = ?, status = ?, owner = ?, termDeposit = ? WHERE id = ?'
+              ).bind(data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null, termDepositJson, data.id).run();
+            } catch (fallbackErr) {
+              await env.DB.prepare(
+                'UPDATE accounts SET name = ?, type = ?, balance = ?, currency = ?, note = ?, status = ?, owner = ? WHERE id = ?'
+              ).bind(data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null, data.id).run();
+            }
+          }
         } else if (action === 'delete') {
           await env.DB.prepare('DELETE FROM accounts WHERE id = ?').bind(data).run();
         }

@@ -49,7 +49,8 @@ CREATE TABLE IF NOT EXISTS accounts (
     currency TEXT NOT NULL,
     note TEXT,
     status TEXT DEFAULT 'Active',
-    owner TEXT
+    owner TEXT,
+    termDeposit TEXT -- JSON string of TermDepositDetails
 );
 
 -- Chart of Accounts Table

@@ -1,12 +1,12 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../store';
-import { Account, AccountType, Currency, TransactionType, AccountStatus } from '../types';
-import { formatCurrency, cn, CLASSES, convertToDefault, getPhnomPenhNowISO } from '../utils';
+import { Account, AccountType, Currency, TransactionType, AccountStatus, TermDepositDetails } from '../types';
+import { formatCurrency, cn, CLASSES, convertToDefault, getPhnomPenhNowISO, computeMaturityDate, computeTermDepositFinancials, formatDate } from '../utils';
 import { AccountsMenu } from './menus/AccountsMenu';
 import {
     PlusCircle, Landmark, Wallet, ChevronDown, X, Loader2, AlertTriangle, Info, Coins,
-    CalendarSync, CheckCircle2
+    CalendarSync, CheckCircle2, PiggyBank, Calendar, Percent
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { NumericInput } from './NumericInput';
@@ -235,6 +235,7 @@ export const Accounts: React.FC = () => {
     const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
     // Form Data
+    const todayISO = getPhnomPenhNowISO().slice(0, 10);
     const [accountForm, setAccountForm] = useState({
         name: '',
         type: AccountType.BANK as string,
@@ -242,7 +243,11 @@ export const Accounts: React.FC = () => {
         currency: settings.defaultCurrency,
         status: AccountStatus.ACTIVE,
         note: '',
-        owner: 'Kimsan'
+        owner: 'Kimsan',
+        termMonths: '12',
+        interestRate: '7.25',
+        startDate: todayISO,
+        maturityDate: computeMaturityDate(todayISO, 12)
     });
     const [transferForm, setTransferForm] = useState({ fromId: '', toId: '', amount: '', date: getPhnomPenhNowISO(), note: '' });
     const [adjustForm, setAdjustForm] = useState({ balance: '', date: getPhnomPenhNowISO(), note: '' });
@@ -313,16 +318,21 @@ export const Accounts: React.FC = () => {
         return groups;
     }, [displayAccounts, selectedCurrency]);
 
-    const openAddModal = () => {
+    const openAddModal = (defaultType?: string) => {
         setEditingAccount(null);
+        const todayStr = getPhnomPenhNowISO().slice(0, 10);
         setAccountForm({
             name: '',
-            type: AccountType.BANK,
+            type: defaultType || AccountType.BANK,
             balance: '',
             currency: selectedCurrency ? (selectedCurrency as Currency) : settings.defaultCurrency,
             status: AccountStatus.ACTIVE,
             note: '',
-            owner: 'Kimsan'
+            owner: 'Kimsan',
+            termMonths: '12',
+            interestRate: '7.25',
+            startDate: todayStr,
+            maturityDate: computeMaturityDate(todayStr, 12)
         });
         setErrors({});
         setIsNewMenuOpen(false);
@@ -331,6 +341,7 @@ export const Accounts: React.FC = () => {
 
     const openEditModal = (acc: Account) => {
         setEditingAccount(acc);
+        const todayStr = getPhnomPenhNowISO().slice(0, 10);
         setAccountForm({
             name: acc.name,
             type: acc.type,
@@ -338,7 +349,11 @@ export const Accounts: React.FC = () => {
             currency: acc.currency as Currency,
             status: acc.status || AccountStatus.ACTIVE,
             note: acc.note || '',
-            owner: acc.owner || 'Kimsan'
+            owner: acc.owner || 'Kimsan',
+            termMonths: acc.termDeposit?.termMonths ? acc.termDeposit.termMonths.toString() : '12',
+            interestRate: acc.termDeposit?.interestRate ? acc.termDeposit.interestRate.toString() : '7.25',
+            startDate: acc.termDeposit?.startDate || todayStr,
+            maturityDate: acc.termDeposit?.maturityDate || computeMaturityDate(todayStr, 12)
         });
         setErrors({});
         setIsAddModalOpen(true);
@@ -386,15 +401,32 @@ export const Accounts: React.FC = () => {
         setIsSubmitting(true);
         await new Promise(r => setTimeout(r, 500));
 
+        const isTermDeposit = accountForm.type === AccountType.TERM_DEPOSIT;
+        const termMonthsNum = parseInt(accountForm.termMonths, 10) || 12;
+        const interestRateNum = parseFloat(accountForm.interestRate) || 7.25;
+        const startDateVal = accountForm.startDate || getPhnomPenhNowISO().slice(0, 10);
+        const maturityDateVal = accountForm.maturityDate || computeMaturityDate(startDateVal, termMonthsNum);
+
+        const termDepositPayload: TermDepositDetails | undefined = isTermDeposit ? {
+            depositAmount: bal,
+            termMonths: termMonthsNum,
+            interestRate: interestRateNum,
+            startDate: startDateVal,
+            maturityDate: maturityDateVal,
+            taxRate: 6
+        } : undefined;
+
         if (editingAccount) {
             updateAccount({
                 ...editingAccount,
                 name: accountForm.name,
                 type: accountForm.type,
+                balance: bal,
                 currency: accountForm.currency,
                 status: accountForm.status,
                 note: accountForm.note,
-                owner: accountForm.owner
+                owner: accountForm.owner,
+                termDeposit: termDepositPayload
             });
         } else {
             addAccount({
@@ -404,7 +436,8 @@ export const Accounts: React.FC = () => {
                 currency: accountForm.currency,
                 status: accountForm.status,
                 note: accountForm.note,
-                owner: accountForm.owner
+                owner: accountForm.owner,
+                termDeposit: termDepositPayload
             });
         }
         setIsSubmitting(false);
@@ -547,13 +580,13 @@ export const Accounts: React.FC = () => {
                                     >
                                         {t('view_all')}
                                     </button>
-                                    {[AccountType.BANK, AccountType.CASH, AccountType.WALLET].map(type => (
+                                    {[AccountType.BANK, AccountType.CASH, AccountType.WALLET, AccountType.TERM_DEPOSIT].map(type => (
                                         <button
                                             key={type}
                                             onClick={() => { setFilterType(type); setIsFilterMenuOpen(false); }}
                                             className={cn("w-full text-left px-4 py-2.5 text-sm font-bold transition-colors h-10", filterType === type ? "text-emerald-600 bg-emerald-50/30" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800")}
                                         >
-                                            {t(type.toLowerCase()) || type}
+                                            {t(type.toLowerCase().replace(/\s+/g, '_')) || type}
                                         </button>
                                     ))}
                                 </div>
@@ -609,12 +642,18 @@ export const Accounts: React.FC = () => {
                                 </button>
                             )}
                             {isNewMenuOpen && (
-                                <div className="absolute right-0 top-full mt-2 w-52 bg-white dark:bg-dark-card border border-gray-200/60 dark:border-dark-border rounded-xl shadow-2xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-200 origin-top-right ring-1 ring-black/5 overflow-hidden">
+                                <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-dark-card border border-gray-200/60 dark:border-dark-border rounded-xl shadow-2xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-200 origin-top-right ring-1 ring-black/5 overflow-hidden">
                                     <button
-                                        onClick={openAddModal}
+                                        onClick={() => openAddModal()}
                                         className="w-full text-left px-4 py-2.5 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-3 transition-colors h-10"
                                     >
                                         <Wallet size={16} /> {t('add_account')}
+                                    </button>
+                                    <button
+                                        onClick={() => openAddModal(AccountType.TERM_DEPOSIT)}
+                                        className="w-full text-left px-4 py-2.5 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 flex items-center gap-3 transition-colors h-10"
+                                    >
+                                        <PiggyBank size={16} /> {t('add_term_deposit', 'Add Term Deposit')}
                                     </button>
                                     <button
                                         onClick={openTransferModal}
@@ -678,7 +717,9 @@ export const Accounts: React.FC = () => {
                                         <div className="flex justify-between items-center mb-1">
                                             <div className="flex items-center gap-2.5 min-w-0">
                                                 <div className="p-1.5 bg-gray-50 dark:bg-gray-800 text-gray-400 group-hover:text-emerald-600 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/20 rounded-lg border border-gray-100 dark:border-gray-700 transition-colors shrink-0">
-                                                    {acc.type === AccountType.WALLET ? <Wallet size={16} /> : acc.type === AccountType.CASH ? <Coins size={16} /> : <Landmark size={16} />}
+                                                    {acc.type === AccountType.WALLET ? <Wallet size={16} /> : 
+                                                     acc.type === AccountType.CASH ? <Coins size={16} /> : 
+                                                     acc.type === AccountType.TERM_DEPOSIT ? <PiggyBank size={16} className="text-emerald-600" /> : <Landmark size={16} />}
                                                 </div>
                                                 <div className="min-w-0">
                                                     <div className="flex items-center gap-1.5">
@@ -694,7 +735,9 @@ export const Accounts: React.FC = () => {
                                                         )}
                                                     </div>
                                                     <div className="flex items-center gap-2 mt-0.5">
-                                                        <Typography variant="caption" className="opacity-65 text-[10px] md:text-xs font-normal leading-none">{t(acc.type.toLowerCase()) || acc.type}</Typography>
+                                                        <Typography variant="caption" className="opacity-65 text-[10px] md:text-xs font-normal leading-none">
+                                                            {t(acc.type.toLowerCase().replace(/\s+/g, '_')) || acc.type}
+                                                        </Typography>
                                                         {acc.owner && (
                                                             <>
                                                                 <span className="w-1 h-1 rounded-full bg-gray-300 dark:bg-gray-600 shrink-0"></span>
@@ -702,6 +745,16 @@ export const Accounts: React.FC = () => {
                                                             </>
                                                         )}
                                                     </div>
+                                                    {acc.type === AccountType.TERM_DEPOSIT && acc.termDeposit && (
+                                                        <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                                                            <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-md border border-emerald-100 dark:border-emerald-800">
+                                                                {acc.termDeposit.termMonths} {t('months', 'Months')} • {acc.termDeposit.interestRate}% p.a.
+                                                            </span>
+                                                            <span className="text-[10px] font-medium text-gray-400">
+                                                                {formatDate(acc.termDeposit.maturityDate, settings.language)}
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="-mr-1 self-start">
@@ -716,7 +769,9 @@ export const Accounts: React.FC = () => {
                                         </div>
 
                                         <div className="mt-auto pt-2 border-t border-gray-100 dark:border-gray-800 flex justify-between items-end">
-                                            <Typography variant="caption" className="block mb-px text-xs md:text-sm opacity-85">{t('available')}</Typography>
+                                            <Typography variant="caption" className="block mb-px text-xs md:text-sm opacity-85">
+                                                {acc.type === AccountType.TERM_DEPOSIT ? t('deposit_balance', 'Deposit Balance') : t('available')}
+                                            </Typography>
                                             <Typography variant="h2" className="text-base md:text-lg font-semibold tabular-nums tracking-tight leading-none text-emerald-600 dark:text-emerald-400">{formatCurrency(acc.balance, acc.currency, settings.language)}</Typography>
                                         </div>
                                     </div>
@@ -807,9 +862,183 @@ export const Accounts: React.FC = () => {
                                         />
                                     </div>
                                 </div>
-                                {!editingAccount && (
+                                {(!editingAccount || accountForm.type === AccountType.TERM_DEPOSIT) && (
                                     // Rule: Form Input -> text-base font-semibold
-                                    <NumericInput label={t('beginning_balance')} value={accountForm.balance} onChange={v => setAccountForm({ ...accountForm, balance: v })} inputClassName="h-11 rounded-md border-2 text-base font-semibold" />
+                                    <NumericInput
+                                        label={accountForm.type === AccountType.TERM_DEPOSIT ? t('deposit_amount', 'Deposit Amount') : t('beginning_balance')}
+                                        value={accountForm.balance}
+                                        onChange={v => setAccountForm({ ...accountForm, balance: v })}
+                                        inputClassName="h-11 rounded-md border-2 text-base font-semibold"
+                                    />
+                                )}
+
+                                {accountForm.type === AccountType.TERM_DEPOSIT && (
+                                    <div className="space-y-4 pt-1">
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <div className="flex justify-between items-center">
+                                                    <Typography variant="label">{t('deposit_term', 'Deposit Term')}</Typography>
+                                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-md">[ {t('months', 'Months')} ]</span>
+                                                </div>
+                                                <div className="relative">
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        max="120"
+                                                        disabled={isSubmitting}
+                                                        className={cn(CLASSES.input, "h-11 rounded-md border-2 pr-16 text-base font-semibold")}
+                                                        value={accountForm.termMonths}
+                                                        onChange={e => {
+                                                            const m = e.target.value;
+                                                            setAccountForm(prev => ({
+                                                                ...prev,
+                                                                termMonths: m,
+                                                                maturityDate: computeMaturityDate(prev.startDate, parseInt(m, 10) || 12)
+                                                            }));
+                                                        }}
+                                                        placeholder="12"
+                                                    />
+                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 pointer-events-none">
+                                                        {t('months', 'Months')}
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center gap-1 mt-1 overflow-x-auto pb-1 scrollbar-none">
+                                                    {[1, 3, 6, 12, 24, 36].map(m => (
+                                                        <button
+                                                            key={m}
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setAccountForm(prev => ({
+                                                                    ...prev,
+                                                                    termMonths: m.toString(),
+                                                                    maturityDate: computeMaturityDate(prev.startDate, m)
+                                                                }));
+                                                            }}
+                                                            className={cn(
+                                                                "px-2 py-0.5 text-[10px] font-semibold rounded-md border transition-all shrink-0",
+                                                                accountForm.termMonths === m.toString()
+                                                                    ? "bg-emerald-50 dark:bg-emerald-900/40 text-emerald-600 border-emerald-300 dark:border-emerald-700"
+                                                                    : "bg-gray-50 dark:bg-gray-800 text-gray-500 border-gray-200 dark:border-gray-700 hover:text-emerald-600"
+                                                            )}
+                                                        >
+                                                            {m}M
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <div className="flex justify-between items-center">
+                                                    <Typography variant="label">{t('interest_rate', 'Interest Rate')}</Typography>
+                                                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-md">[ % p.a. ]</span>
+                                                </div>
+                                                <div className="relative">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        min="0"
+                                                        max="100"
+                                                        disabled={isSubmitting}
+                                                        className={cn(CLASSES.input, "h-11 rounded-md border-2 pr-10 text-base font-semibold")}
+                                                        value={accountForm.interestRate}
+                                                        onChange={e => setAccountForm({ ...accountForm, interestRate: e.target.value })}
+                                                        placeholder="7.25"
+                                                    />
+                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-gray-400 pointer-events-none">
+                                                        %
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <CustomDatePicker
+                                                type="date"
+                                                label={t('start_date', 'Start Date')}
+                                                value={accountForm.startDate}
+                                                onChange={val => {
+                                                    setAccountForm(prev => ({
+                                                        ...prev,
+                                                        startDate: val,
+                                                        maturityDate: computeMaturityDate(val, parseInt(prev.termMonths, 10) || 12)
+                                                    }));
+                                                }}
+                                                inputClassName="h-11 rounded-md border-2"
+                                                disabled={isSubmitting}
+                                            />
+                                            <CustomDatePicker
+                                                type="date"
+                                                label={t('maturity_date', 'Maturity Date')}
+                                                value={accountForm.maturityDate}
+                                                onChange={val => setAccountForm(prev => ({ ...prev, maturityDate: val }))}
+                                                inputClassName="h-11 rounded-md border-2"
+                                                disabled={isSubmitting}
+                                            />
+                                        </div>
+
+                                        {/* Real-time Calculation Preview Card */}
+                                        {(() => {
+                                            const balVal = parseFloat(accountForm.balance.replace(/,/g, '')) || 0;
+                                            const termVal = parseInt(accountForm.termMonths, 10) || 12;
+                                            const rateVal = parseFloat(accountForm.interestRate) || 7.25;
+                                            const financials = computeTermDepositFinancials(balVal, rateVal, termVal, 6);
+
+                                            return (
+                                                <div className="space-y-3 pt-1">
+                                                    {/* Rounded white information-card section */}
+                                                    <div className="bg-white dark:bg-gray-800/80 rounded-2xl p-4 border border-gray-200/80 dark:border-gray-700 shadow-sm space-y-3">
+                                                        <div className="flex items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-700/60">
+                                                            <div className="flex items-center gap-2">
+                                                                <PiggyBank size={18} className="text-emerald-500" />
+                                                                <span className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t('term_deposit', 'Term Deposit')}</span>
+                                                            </div>
+                                                            <span className="text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full">
+                                                                {accountForm.currency}
+                                                            </span>
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800">
+                                                                <span className="text-[10px] font-semibold text-gray-400 block mb-0.5">{t('deposit_term', 'Deposit Term')}</span>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className="text-base font-bold text-gray-800 dark:text-gray-100 tabular-nums">{termVal}</span>
+                                                                    <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded-md">[ {t('months', 'Months')} ]</span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-800">
+                                                                <span className="text-[10px] font-semibold text-gray-400 block mb-0.5">{t('interest_rate', 'Interest Rate')}</span>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <span className="text-base font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">[ {rateVal}% ]</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Lower summary section */}
+                                                    <div className="bg-white dark:bg-gray-800/80 rounded-2xl p-4 border border-gray-200/80 dark:border-gray-700 shadow-sm space-y-2.5 text-xs">
+                                                        <div className="flex justify-between items-center text-gray-600 dark:text-gray-300">
+                                                            <span className="font-medium">{t('deposit_amount', 'Deposit Amount')}:</span>
+                                                            <span className="font-bold tabular-nums text-gray-900 dark:text-gray-100">{formatCurrency(financials.depositAmount, accountForm.currency, settings.language)}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-gray-600 dark:text-gray-300">
+                                                            <span className="font-medium">{t('total_interest', 'Total Interest')}:</span>
+                                                            <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+{formatCurrency(financials.totalInterest, accountForm.currency, settings.language)}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-gray-600 dark:text-gray-300">
+                                                            <span className="font-medium">{t('tax_on_interest', 'Tax on Interest (6%)')}:</span>
+                                                            <span className="font-bold tabular-nums text-red-500">-{formatCurrency(financials.taxOnInterest, accountForm.currency, settings.language)}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center text-gray-600 dark:text-gray-300 pt-1 border-t border-gray-100 dark:border-gray-700/60">
+                                                            <span className="font-medium">{t('net_interest_after_tax', 'Net Interest After Tax')}:</span>
+                                                            <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+{formatCurrency(financials.netInterest, accountForm.currency, settings.language)}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center pt-2 border-t-2 border-emerald-500/20 text-gray-900 dark:text-gray-50">
+                                                            <span className="font-bold text-xs uppercase tracking-tight text-gray-700 dark:text-gray-200">{t('total_principal_and_interest', 'Total Principal & Interest')}:</span>
+                                                            <span className="font-extrabold text-sm text-emerald-600 dark:text-emerald-400 tabular-nums">{formatCurrency(financials.totalPrincipalAndInterest, accountForm.currency, settings.language)}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
                                 )}
                                 <div className="space-y-1">
                                     <div className="flex justify-between items-center px-1">

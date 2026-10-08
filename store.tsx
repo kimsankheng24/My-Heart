@@ -553,6 +553,19 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
         gain_loss: 'Gain/Loss',
         sold_status: 'Sold',
         paid_off_status: 'Paid Off',
+        term_deposit: 'Term Deposit',
+        add_term_deposit: 'Add Term Deposit',
+        deposit_balance: 'Deposit Balance',
+        deposit_period: 'Deposit Period',
+        deposit_term: 'Deposit Term',
+        maturity_date: 'Maturity Date',
+        deposit_amount: 'Deposit Amount',
+        total_interest: 'Total Interest',
+        tax_on_interest: 'Tax on Interest (6%)',
+        net_interest_after_tax: 'Net Interest After Tax',
+        total_principal_and_interest: 'Total Principal & Interest',
+        months: 'Months',
+        matured: 'Matured',
     },
     km: {
         dashboard: 'ផ្ទាំងគ្រប់គ្រង',
@@ -1097,6 +1110,19 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
         gain_loss: 'ចំណេញ/ខាត',
         sold_status: 'បានលក់',
         paid_off_status: 'បានបង់ផ្តាច់',
+        term_deposit: 'គណនីបញ្ញើមានកាលកំណត់',
+        add_term_deposit: 'បន្ថែមគណនីបញ្ញើមានកាលកំណត់',
+        deposit_balance: 'សមតុល្យប្រាក់បញ្ញើ',
+        deposit_period: 'រយៈពេលបញ្ញើ',
+        deposit_term: 'កាលកំណត់បញ្ញើ',
+        maturity_date: 'កាលបរិច្ឆេទផុតកំណត់',
+        deposit_amount: 'ចំនួនប្រាក់បញ្ញើ',
+        total_interest: 'ការប្រាក់សរុប',
+        tax_on_interest: 'ពន្ធលើការប្រាក់ (6%)',
+        net_interest_after_tax: 'ការប្រាក់សុទ្ធក្រោយកាត់ពន្ធ',
+        total_principal_and_interest: 'ប្រាក់ដើម & ការប្រាក់សរុប',
+        months: 'ខែ',
+        matured: 'បានផុតកំណត់',
     }
 };
 
@@ -1259,12 +1285,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
                 // Self-healing balances recalculation
                 const calculatedBalances: Record<string, number> = {};
+                const accountHasTransactions: Record<string, boolean> = {};
                 loadedTransactions.forEach((tx: any) => {
+                    accountHasTransactions[tx.accountId] = true;
                     if (!calculatedBalances[tx.accountId]) calculatedBalances[tx.accountId] = 0;
                     calculatedBalances[tx.accountId] += tx.type === 'Income' ? tx.amount : -tx.amount;
                 });
 
                 loadedAccounts = loadedAccounts.map((acc: any) => {
+                    // Retain initial balance if account has no transactions yet (e.g. newly created Term Deposit or account)
+                    if (!accountHasTransactions[acc.id]) {
+                        return acc;
+                    }
                     const correctBalance = calculatedBalances[acc.id] || 0;
                     if (Math.abs(acc.balance - correctBalance) > 0.001) {
                         const updatedAcc = { ...acc, balance: correctBalance };

@@ -13,7 +13,17 @@ export enum TransactionType {
 export enum AccountType {
   BANK = 'Bank',
   CASH = 'Cash',
-  WALLET = 'Wallet'
+  WALLET = 'Wallet',
+  TERM_DEPOSIT = 'Term Deposit'
+}
+
+export interface TermDepositDetails {
+  depositAmount: number;
+  termMonths: number;
+  interestRate: number; // e.g. 7.25 for 7.25%
+  startDate: string; // YYYY-MM-DD
+  maturityDate: string; // YYYY-MM-DD
+  taxRate?: number; // default 6 (%)
 }
 
 export enum AccountStatus {
@@ -142,6 +152,7 @@ export interface Account {
   note?: string;
   status?: AccountStatus;
   owner?: string;
+  termDeposit?: TermDepositDetails;
 }
 
 export interface Transaction {

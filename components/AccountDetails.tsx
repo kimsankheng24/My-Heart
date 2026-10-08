@@ -2,9 +2,9 @@
 import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { useApp } from '../store';
-import { TransactionType, Currency, Transaction } from '../types';
-import { formatCurrency, formatDate, formatDateTime, cn, CLASSES, convertToDefault } from '../utils';
-import { ArrowLeft, Landmark, X, Clock, Tag, User as UserIcon, Wallet } from 'lucide-react';
+import { TransactionType, Currency, Transaction, AccountType } from '../types';
+import { formatCurrency, formatDate, formatDateTime, cn, CLASSES, convertToDefault, computeTermDepositFinancials } from '../utils';
+import { ArrowLeft, Landmark, X, Clock, Tag, User as UserIcon, Wallet, PiggyBank, Calendar } from 'lucide-react';
 import { Typography } from './Typography';
 import { CustomDatePicker } from './CustomDatePicker';
 import { ResponsiveGrid } from './ResponsiveGrid';
@@ -89,30 +89,206 @@ export const AccountDetails: React.FC = () => {
                                 {account.currency}
                             </span>
                         </div>
-                        <Typography variant="caption" className="font-bold text-gray-400 truncate block mt-0.5 text-[10px] md:text-xs">{t(account.type.toLowerCase()) || account.type} • {account.note || t('account_book')}</Typography>
+                        <Typography variant="caption" className="font-bold text-gray-400 truncate block mt-0.5 text-[10px] md:text-xs">
+                            {t(account.type.toLowerCase().replace(/\s+/g, '_')) || account.type} • {account.note || t('account_book')}
+                        </Typography>
                     </div>
                 </div>
             </div>
 
-            {/* Refined Summary KPI Card - Compact Version - Rule: Rounded-xl */}
-            <div className="w-full mb-4">
-                <div className="bg-[#10B981] p-5 sm:p-6 rounded-xl text-white shadow-lg shadow-emerald-500/20 relative overflow-hidden group flex flex-col justify-between">
-                    <div className="absolute -top-24 -right-24 w-48 h-48 bg-white rounded-full mix-blend-overlay opacity-10 blur-2xl pointer-events-none group-hover:scale-125 transition-transform duration-1000" />
-                    <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-emerald-900 rounded-full mix-blend-overlay opacity-20 blur-2xl pointer-events-none" />
+            {/* Conditional Rendering: Term Deposit Dashboard vs Standard Account KPI */}
+            {account.type === AccountType.TERM_DEPOSIT || account.termDeposit ? (() => {
+                const termDeposit = account.termDeposit || {
+                    depositAmount: account.balance,
+                    termMonths: 12,
+                    interestRate: 7.25,
+                    startDate: new Date().toISOString().slice(0, 10),
+                    maturityDate: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().slice(0, 10),
+                    taxRate: 6
+                };
 
-                    <div className="relative z-10 flex flex-col gap-5">
-                        <div>
-                            <Typography variant="caption" className="text-emerald-100 dark:text-emerald-100 font-medium mb-1 block">
-                                {t('available_balance_label')}
-                            </Typography>
-                            {/* Rule: Summary Card Amount -> text-lg md:text-xl font-semibold */}
-                            <Typography variant="h1" className="text-white text-lg md:text-xl font-semibold tracking-tight tabular-nums leading-none">
-                                {formatCurrency(account.balance, account.currency, settings.language)}
-                            </Typography>
+                const financials = computeTermDepositFinancials(
+                    termDeposit.depositAmount || account.balance,
+                    termDeposit.interestRate || 7.25,
+                    termDeposit.termMonths || 12,
+                    termDeposit.taxRate || 6
+                );
+
+                const startMs = new Date(termDeposit.startDate).getTime();
+                const maturityMs = new Date(termDeposit.maturityDate).getTime();
+                const nowMs = new Date().getTime();
+                const totalPeriodMs = Math.max(1, maturityMs - startMs);
+                const elapsedMs = Math.max(0, Math.min(totalPeriodMs, nowMs - startMs));
+                const progressPercent = Math.min(100, Math.max(0, Math.round((elapsedMs / totalPeriodMs) * 100)));
+                const isMatured = nowMs >= maturityMs;
+                const daysRemaining = Math.max(0, Math.ceil((maturityMs - nowMs) / (1000 * 60 * 60 * 24)));
+
+                return (
+                    <div className="w-full space-y-4 mb-4">
+                        {/* 1. A large, prominent deposit balance */}
+                        <div className="bg-gradient-to-br from-[#10B981] via-[#059669] to-[#047857] p-6 sm:p-7 rounded-2xl text-white shadow-xl shadow-emerald-500/20 relative overflow-hidden group">
+                            <div className="absolute -top-24 -right-24 w-56 h-56 bg-white rounded-full mix-blend-overlay opacity-15 blur-2xl pointer-events-none group-hover:scale-125 transition-transform duration-1000" />
+                            <div className="absolute -bottom-24 -left-24 w-56 h-56 bg-emerald-950 rounded-full mix-blend-overlay opacity-25 blur-2xl pointer-events-none" />
+
+                            <div className="relative z-10 flex flex-col gap-2">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-emerald-100 text-xs sm:text-sm font-semibold tracking-wide uppercase flex items-center gap-2">
+                                        <PiggyBank size={18} />
+                                        {t('deposit_balance', 'Deposit Balance')}
+                                    </span>
+                                    <span className="text-xs font-black px-2.5 py-1 bg-white/20 backdrop-blur-md text-white rounded-xl uppercase tracking-wider shadow-sm">
+                                        {account.currency}
+                                    </span>
+                                </div>
+                                <div className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight tabular-nums text-white my-1 leading-tight">
+                                    {formatCurrency(account.balance, account.currency, settings.language)}
+                                </div>
+                                <div className="flex items-center gap-2 text-emerald-100/90 text-xs font-medium">
+                                    <span>{account.owner || 'Kimsan'}</span>
+                                    <span>•</span>
+                                    <span>{account.name}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 2. A horizontal progress indicator showing the deposit period & Start Date and Maturity Date */}
+                        <div className="bg-white dark:bg-dark-card rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100 dark:border-dark-border space-y-3.5">
+                            <div className="flex items-center justify-between text-xs font-bold">
+                                <span className="text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                                    <Clock size={15} className="text-emerald-500" />
+                                    {t('deposit_period', 'Deposit Period')}
+                                </span>
+                                <span className={cn(
+                                    "px-2.5 py-1 rounded-full text-[11px] font-bold tabular-nums border",
+                                    isMatured
+                                        ? "bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                                        : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800"
+                                )}>
+                                    {isMatured ? t('matured', 'Matured') : `${progressPercent}% • ${daysRemaining} ${t('days_left', 'days left')}`}
+                                </span>
+                            </div>
+
+                            {/* Horizontal Progress Bar */}
+                            <div className="w-full h-3.5 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden p-0.5 border border-gray-200/60 dark:border-gray-700">
+                                <div
+                                    className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 rounded-full transition-all duration-700 shadow-sm"
+                                    style={{ width: `${Math.max(2, progressPercent)}%` }}
+                                />
+                            </div>
+
+                            {/* Start Date and Maturity Date */}
+                            <div className="flex items-center justify-between pt-1 text-xs">
+                                <div className="flex items-center gap-2">
+                                    <div className="p-1.5 bg-gray-50 dark:bg-gray-800 rounded-lg text-gray-400 border border-gray-100 dark:border-gray-700">
+                                        <Calendar size={14} />
+                                    </div>
+                                    <div>
+                                        <span className="text-[10px] text-gray-400 font-semibold block uppercase">{t('start_date', 'Start Date')}</span>
+                                        <span className="font-bold text-gray-800 dark:text-gray-200 tabular-nums">
+                                            {formatDate(termDeposit.startDate, settings.language)}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 text-right">
+                                    <div>
+                                        <span className="text-[10px] text-gray-400 font-semibold block uppercase">{t('maturity_date', 'Maturity Date')}</span>
+                                        <span className="font-bold text-gray-800 dark:text-gray-200 tabular-nums">
+                                            {formatDate(termDeposit.maturityDate, settings.language)}
+                                        </span>
+                                    </div>
+                                    <div className="p-1.5 bg-emerald-50 dark:bg-emerald-900/30 rounded-lg text-emerald-600 border border-emerald-100 dark:border-emerald-800">
+                                        <Calendar size={14} />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 3. A rounded white information-card section containing: Deposit Term & Interest Rate */}
+                        <div className="bg-white dark:bg-dark-card rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100 dark:border-dark-border">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="p-4 rounded-xl bg-gray-50/80 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800 flex flex-col justify-between">
+                                    <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 block mb-2">
+                                        {t('deposit_term', 'Deposit Term')}:
+                                    </span>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white tabular-nums">
+                                            {termDeposit.termMonths}
+                                        </span>
+                                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2.5 py-1 rounded-lg border border-emerald-100 dark:border-emerald-800">
+                                            [ {t('months', 'Months')} ]
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <div className="p-4 rounded-xl bg-gray-50/80 dark:bg-gray-800/40 border border-gray-100 dark:border-gray-800 flex flex-col justify-between">
+                                    <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 block mb-2">
+                                        {t('interest_rate', 'Interest Rate')}:
+                                    </span>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-2xl sm:text-3xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                            [ {termDeposit.interestRate}% ]
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 4. A lower summary section showing: Deposit Amount, Total Interest, Tax, Net Interest, Total Principal & Interest */}
+                        <div className="bg-white dark:bg-dark-card rounded-2xl p-5 md:p-6 shadow-sm border border-gray-100 dark:border-dark-border space-y-3.5">
+                            <div className="flex justify-between items-center text-sm py-1.5 border-b border-gray-100 dark:border-gray-800">
+                                <span className="font-semibold text-gray-600 dark:text-gray-300">{t('deposit_amount', 'Deposit Amount')}:</span>
+                                <span className="font-bold tabular-nums text-gray-900 dark:text-gray-100 text-sm sm:text-base">
+                                    {formatCurrency(financials.depositAmount, account.currency, settings.language)}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm py-1.5 border-b border-gray-100 dark:border-gray-800">
+                                <span className="font-semibold text-gray-600 dark:text-gray-300">{t('total_interest', 'Total Interest')}:</span>
+                                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400 text-sm sm:text-base">
+                                    +{formatCurrency(financials.totalInterest, account.currency, settings.language)}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm py-1.5 border-b border-gray-100 dark:border-gray-800">
+                                <span className="font-semibold text-gray-600 dark:text-gray-300">{t('tax_on_interest', 'Tax on Interest (6%)')}:</span>
+                                <span className="font-bold tabular-nums text-red-500 dark:text-red-400 text-sm sm:text-base">
+                                    -{formatCurrency(financials.taxOnInterest, account.currency, settings.language)}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm py-1.5 border-b border-gray-100 dark:border-gray-800">
+                                <span className="font-semibold text-gray-600 dark:text-gray-300">{t('net_interest_after_tax', 'Net Interest After Tax')}:</span>
+                                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400 text-sm sm:text-base">
+                                    +{formatCurrency(financials.netInterest, account.currency, settings.language)}
+                                </span>
+                            </div>
+                            <div className="flex justify-between items-center pt-3 border-t-2 border-emerald-500/20 text-gray-900 dark:text-gray-50">
+                                <span className="font-extrabold text-sm sm:text-base text-gray-800 dark:text-gray-100 uppercase tracking-tight">
+                                    {t('total_principal_and_interest', 'Total Principal & Interest')}:
+                                </span>
+                                <span className="font-black text-lg sm:text-2xl text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                    {formatCurrency(financials.totalPrincipalAndInterest, account.currency, settings.language)}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                );
+            })() : (
+                <div className="w-full mb-4">
+                    <div className="bg-[#10B981] p-5 sm:p-6 rounded-xl text-white shadow-lg shadow-emerald-500/20 relative overflow-hidden group flex flex-col justify-between">
+                        <div className="absolute -top-24 -right-24 w-48 h-48 bg-white rounded-full mix-blend-overlay opacity-10 blur-2xl pointer-events-none group-hover:scale-125 transition-transform duration-1000" />
+                        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-emerald-900 rounded-full mix-blend-overlay opacity-20 blur-2xl pointer-events-none" />
+
+                        <div className="relative z-10 flex flex-col gap-5">
+                            <div>
+                                <Typography variant="caption" className="text-emerald-100 dark:text-emerald-100 font-medium mb-1 block">
+                                    {t('available_balance_label')}
+                                </Typography>
+                                <Typography variant="h1" className="text-white text-lg md:text-xl font-semibold tracking-tight tabular-nums leading-none">
+                                    {formatCurrency(account.balance, account.currency, settings.language)}
+                                </Typography>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Activity Registry Section - Rule: Rounded-lg for Table/List Container */}
             <div className={cn(CLASSES.card, "flex flex-col border-gray-200 dark:border-dark-border overflow-hidden min-h-[500px] h-[60vh] bg-white dark:bg-dark-card rounded-lg md:rounded-lg")}>
