@@ -1224,8 +1224,8 @@ export const Transactions: React.FC = () => {
     const transactionToDeleteDetails = txToDelete ? transactions.find(t => t.id === txToDelete) : null;
 
     return (
-        <div className={cn(CLASSES.container, "!px-2 md:!px-4 lg:!px-6 !space-y-4 pb-24")}>
-            <div className="w-full py-2 mb-4 -mx-4 px-4 lg:-mx-8 lg:px-8 xl:-mx-10 xl:px-10 border-b border-gray-200/50 dark:border-dark-border/50 transition-all duration-200 no-print">
+        <div className="flex flex-col h-full px-2 md:px-4 lg:px-6 overflow-hidden">
+            <div className="w-full py-2.5 mb-3 border-b border-gray-200/50 dark:border-dark-border/50 transition-all duration-200 no-print shrink-0">
                 {selectedIds.size > 0 ? (
                     <div className="w-full flex justify-between items-center gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
                         <div className="flex items-center gap-3">
@@ -1359,7 +1359,7 @@ export const Transactions: React.FC = () => {
                 )}
             </div>
 
-            <div className={cn(CLASSES.card, "flex flex-col border-gray-200 dark:border-dark-border overflow-hidden min-h-[500px] h-[60vh] rounded-lg md:rounded-lg")}>
+            <div className={cn(CLASSES.card, "flex flex-col border-gray-200 dark:border-dark-border overflow-hidden flex-1 min-h-0 rounded-lg")}>
                 <div className="flex-1 overflow-auto scrollbar-thin">
                     <table className="w-full text-left border-separate border-spacing-0 table-fixed min-w-[1100px] xl:min-w-full">
                         <thead className="sticky top-0 z-20">
