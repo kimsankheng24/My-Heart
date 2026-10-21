@@ -873,6 +873,13 @@ export const Transactions: React.FC = () => {
         return `${coa.code} - ${name}`;
     };
 
+    const getCategoryDetails = (categoryName: string) => {
+        const coa = chartOfAccounts.find(c => c.name === categoryName);
+        if (!coa) return { code: null, name: categoryName };
+        const name = settings.language === 'km' && coa.localName ? coa.localName : coa.name;
+        return { code: coa.code, name };
+    };
+
     const filteredTransactions = useMemo(() => {
         const term = searchTerm.toLowerCase();
         return transactions.filter(tx => {
@@ -1354,10 +1361,10 @@ export const Transactions: React.FC = () => {
 
             <div className={cn(CLASSES.card, "flex flex-col border-gray-200 dark:border-dark-border overflow-hidden min-h-[500px] h-[60vh] rounded-lg md:rounded-lg")}>
                 <div className="flex-1 overflow-auto scrollbar-thin">
-                    <table className="w-full text-left border-separate border-spacing-0 table-fixed min-w-[1500px]">
+                    <table className="w-full text-left border-separate border-spacing-0 table-fixed min-w-[1100px] xl:min-w-full">
                         <thead className="sticky top-0 z-20">
                             <tr>
-                                <th className={cn(premiumTh, "w-[50px] pl-4 text-center")}>
+                                <th className={cn(premiumTh, "w-12 pl-4 text-center")}>
                                     <div className="flex items-center justify-center">
                                         <input 
                                             type="checkbox" 
@@ -1368,24 +1375,24 @@ export const Transactions: React.FC = () => {
                                     </div>
                                 </th>
                                 <th 
-                                    className={cn(premiumTh, "w-36 pl-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group")}
+                                    className={cn(premiumTh, "w-32 pl-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group")}
                                     onClick={() => handleSort('date')}
                                 >
                                     <div className="flex items-center gap-1">
-                                        {t('date')}
+                                        <span>{t('date')}</span>
                                         {sortField === 'date' && (
                                             sortDirection === 'asc' ? <ArrowUp size={14} className="text-emerald-600" /> : <ArrowDown size={14} className="text-emerald-600" />
                                         )}
                                         {sortField !== 'date' && <ArrowUpDown size={14} className="text-gray-400 opacity-0 group-hover:opacity-50 transition-opacity" />}
                                     </div>
                                 </th>
-                                <th className={cn(premiumTh, "w-32 text-center")}>{t('type')}</th>
+                                <th className={cn(premiumTh, "w-24 text-center")}>{t('type')}</th>
                                 <th 
-                                    className={cn(premiumTh, "w-80 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group")}
+                                    className={cn(premiumTh, "w-64 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group")}
                                     onClick={() => handleSort('category')}
                                 >
                                     <div className="flex items-center gap-1">
-                                        {t('classification')}
+                                        <span>{t('classification')}</span>
                                         {sortField === 'category' && (
                                             sortDirection === 'asc' ? <ArrowUp size={14} className="text-emerald-600" /> : <ArrowDown size={14} className="text-emerald-600" />
                                         )}
@@ -1393,11 +1400,11 @@ export const Transactions: React.FC = () => {
                                     </div>
                                 </th>
                                 <th 
-                                    className={cn(premiumTh, "w-44 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group")}
+                                    className={cn(premiumTh, "w-36 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group")}
                                     onClick={() => handleSort('paymentSource')}
                                 >
                                     <div className="flex items-center gap-1">
-                                        {t('payment_source')}
+                                        <span>{t('payment_source')}</span>
                                         {sortField === 'paymentSource' && (
                                             sortDirection === 'asc' ? <ArrowUp size={14} className="text-emerald-600" /> : <ArrowDown size={14} className="text-emerald-600" />
                                         )}
@@ -1405,11 +1412,11 @@ export const Transactions: React.FC = () => {
                                     </div>
                                 </th>
                                 <th 
-                                    className={cn(premiumTh, "w-40 text-right cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group")}
+                                    className={cn(premiumTh, "w-32 text-right cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors group")}
                                     onClick={() => handleSort('amount')}
                                 >
                                     <div className="flex items-center justify-end gap-1">
-                                        {t('original_amount')}
+                                        <span>{t('original_amount')}</span>
                                         {sortField === 'amount' && (
                                             sortDirection === 'asc' ? <ArrowUp size={14} className="text-emerald-600" /> : <ArrowDown size={14} className="text-emerald-600" />
                                         )}
@@ -1417,10 +1424,10 @@ export const Transactions: React.FC = () => {
                                     </div>
                                 </th>
                                 <th className={cn(premiumTh, "w-20 text-center")}>{t('currency')}</th>
-                                <th className={cn(premiumTh, "w-40 text-right")}>{t('valuation')} ({settings.defaultCurrency})</th>
-                                <th className={cn(premiumTh, "w-64")}>{t('internal_note')}</th>
-                                <th className={cn(premiumTh, "w-32")}>{t('recorded_by')}</th>
-                                <th className={cn(premiumTh, "w-12 text-center sticky right-0 shadow-[-4px_0_12px_rgba(0,0,0,0.03)] border-l bg-gray-50 dark:bg-gray-800 pr-4")}></th>
+                                <th className={cn(premiumTh, "w-36 text-right")}>{t('valuation')} ({settings.defaultCurrency})</th>
+                                <th className={cn(premiumTh, "w-44")}>{t('internal_note')}</th>
+                                <th className={cn(premiumTh, "w-28")}>{t('recorded_by')}</th>
+                                <th className={cn(premiumTh, "w-14 text-center sticky right-0 z-20 shadow-[-4px_0_12px_rgba(0,0,0,0.04)] border-l border-gray-200/80 dark:border-dark-border bg-gray-50 dark:bg-gray-800 pr-3")}></th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
@@ -1429,19 +1436,20 @@ export const Transactions: React.FC = () => {
                                 const convertedAmt = convertToDefault(tx.amount, tx.currency, settings.defaultCurrency, settings.exchangeRates);
                                 const isSelected = selectedIds.has(tx.id);
                                 const account = accounts.find(a => a.id === tx.accountId);
+                                const catDetails = getCategoryDetails(tx.category);
                                 return (
                                     <tr 
                                         key={tx.id} 
                                         className={cn(
-                                            "hover:bg-emerald-50/20 dark:hover:bg-emerald-900/10 transition-colors group cursor-pointer animate-in fade-in duration-300", 
-                                            isSelected ? "bg-emerald-50/40 dark:bg-emerald-900/20" : "bg-white dark:bg-[#161b22]"
+                                            "hover:bg-[#f0fdf4] dark:hover:bg-[#19221d] transition-colors group cursor-pointer animate-in fade-in duration-300", 
+                                            isSelected ? "bg-[#ecfdf5] dark:bg-[#064e3b]/30" : "bg-white dark:bg-[#161b22]"
                                         )} 
                                         onClick={() => setViewingTx(tx)}
                                     >
                                         <td className={cn(premiumTd, "pl-4 text-center")} onClick={e => e.stopPropagation()}>
                                             <input 
                                                 type="checkbox" 
-                                                checked={isSelected}
+                                                checked={isSelected} 
                                                 onChange={() => toggleSelect(tx.id)}
                                                 className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500/20 transition-all cursor-pointer"
                                             />
@@ -1453,33 +1461,78 @@ export const Transactions: React.FC = () => {
                                             </div>
                                         </td>
                                         <td className={cn(premiumTd, "text-center")}>
-                                            <span className={cn("px-2 py-0.5 text-xs font-normal rounded-lg border", isIncome ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-red-50 text-red-600 border-red-100")}>{tx.type}</span>
+                                            <span className={cn(
+                                                "inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full border", 
+                                                isIncome 
+                                                    ? "bg-emerald-50 text-emerald-700 border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60" 
+                                                    : "bg-red-50 text-red-700 border-red-200/80 dark:bg-red-950/40 dark:text-red-400 dark:border-red-800/60"
+                                            )}>
+                                                {isIncome ? <TrendingUp size={12} className="shrink-0" /> : <TrendingDown size={12} className="shrink-0" />}
+                                                <span>{isIncome ? (t('income') || tx.type) : (t('expense') || tx.type)}</span>
+                                            </span>
                                         </td>
-                                        <td className={cn(premiumTd, "font-normal group-hover:text-emerald-600 transition-colors truncate")}>
-                                            {getCategoryLabel(tx.category)}
+                                        <td className={cn(premiumTd, "font-normal")}>
+                                            <div className="flex items-center gap-1.5 min-w-0" title={catDetails.code ? `${catDetails.code} - ${catDetails.name}` : catDetails.name}>
+                                                {catDetails.code && (
+                                                    <span className="shrink-0 font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200/60 dark:border-gray-700">
+                                                        {catDetails.code}
+                                                    </span>
+                                                )}
+                                                <span className="truncate text-gray-900 dark:text-gray-100 group-hover:text-emerald-600 transition-colors">
+                                                    {catDetails.name}
+                                                </span>
+                                            </div>
                                         </td>
-                                        <td className={cn(premiumTd, "font-normal text-gray-400 truncate")}>{account?.name || t('manual_registry')}</td>
-                                        {/* Rule: Table Cell -> text-sm md:text-base font-medium */}
-                                        <td className={cn(premiumTd, "text-right text-sm md:text-base font-medium tabular-nums", isIncome ? "text-emerald-600" : "text-red-600")}>
-                                            {isIncome ? '+' : '-'}{new Intl.NumberFormat(settings.language === 'km' ? 'km-KH' : 'en-US', { minimumFractionDigits: 2 }).format(tx.amount)}
+                                        <td className={cn(premiumTd, "font-normal")}>
+                                            <div className="flex items-center gap-1.5 min-w-0 text-gray-600 dark:text-gray-300" title={account?.name || t('manual_registry')}>
+                                                <Landmark size={13} className="shrink-0 text-gray-400" />
+                                                <span className="truncate">{account?.name || t('manual_registry')}</span>
+                                            </div>
                                         </td>
-                                        <td className={cn(premiumTd, "text-center font-normal text-gray-400")}>
-                                            {tx.currency}
+                                        <td className={cn(premiumTd, "text-right text-sm md:text-base font-medium tabular-nums", isIncome ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+                                            {isIncome ? '+' : '-'}{new Intl.NumberFormat(settings.language === 'km' ? 'km-KH' : 'en-US', { 
+                                                minimumFractionDigits: tx.currency === Currency.KHR ? 0 : 2, 
+                                                maximumFractionDigits: tx.currency === Currency.KHR ? 0 : 2 
+                                            }).format(tx.amount)}
                                         </td>
-                                        {/* Rule: Table Cell -> text-sm md:text-base font-medium */}
-                                        <td className={cn(premiumTd, "text-right tabular-nums italic text-sm md:text-base font-medium")}>
-                                            <span className={isIncome ? "text-emerald-600/80" : "text-red-600/80"}>
+                                        <td className={cn(premiumTd, "text-center")}>
+                                            <span className="font-mono text-xs font-semibold px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300">
+                                                {tx.currency}
+                                            </span>
+                                        </td>
+                                        <td className={cn(premiumTd, "text-right tabular-nums text-sm md:text-base font-medium")}>
+                                            <span className={isIncome ? "text-emerald-600/90 dark:text-emerald-400" : "text-red-600/90 dark:text-red-400"}>
                                                 {formatCurrency(convertedAmt, settings.defaultCurrency, settings.language)}
                                             </span>
                                         </td>
                                         <td className={premiumTd}>
-                                            <span className="truncate block italic opacity-65">{tx.note || '—'}</span>
+                                            <span className="truncate block text-gray-500 dark:text-gray-400 text-xs italic" title={tx.note || undefined}>
+                                                {tx.note || '—'}
+                                            </span>
                                         </td>
-                                        <td className={cn(premiumTd, "font-normal text-gray-400 truncate")}>
-                                            {tx.createdBy || t('agent')}
+                                        <td className={cn(premiumTd, "font-normal")}>
+                                            <div className="flex items-center gap-1.5 min-w-0 text-gray-500 dark:text-gray-400" title={tx.createdBy || t('agent')}>
+                                                <UserIcon size={12} className="shrink-0 text-gray-400" />
+                                                <span className="truncate text-xs">{tx.createdBy || t('agent')}</span>
+                                            </div>
                                         </td>
-                                        <td className={cn(premiumTd, "text-center sticky right-0 bg-inherit border-l shadow-[-4px_0_12px_rgba(0,0,0,0.03)] pr-4")} onClick={e => e.stopPropagation()}>
-                                            <div className="flex justify-center"><TransactionsMenu onView={() => setViewingTx(tx)} onEdit={() => openEdit(tx)} onDelete={() => { setTxToDelete(tx.id); setDeleteConfirmOpen(true); }} /></div>
+                                        <td 
+                                            className={cn(
+                                                premiumTd, 
+                                                "text-center sticky right-0 z-10 border-l border-gray-200/80 dark:border-dark-border shadow-[-4px_0_12px_rgba(0,0,0,0.04)] pr-3",
+                                                isSelected 
+                                                    ? "bg-[#ecfdf5] dark:bg-[#064e3b]/30 group-hover:bg-[#d1fae5] dark:group-hover:bg-[#064e3b]/40" 
+                                                    : "bg-white dark:bg-[#161b22] group-hover:bg-[#f0fdf4] dark:group-hover:bg-[#19221d]"
+                                            )} 
+                                            onClick={e => e.stopPropagation()}
+                                        >
+                                            <div className="flex justify-center">
+                                                <TransactionsMenu 
+                                                    onView={() => setViewingTx(tx)} 
+                                                    onEdit={() => openEdit(tx)} 
+                                                    onDelete={() => { setTxToDelete(tx.id); setDeleteConfirmOpen(true); }} 
+                                                />
+                                            </div>
                                         </td>
                                     </tr>
                                 );
