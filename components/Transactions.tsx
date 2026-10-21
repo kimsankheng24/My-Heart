@@ -159,36 +159,84 @@ const ImportModal: React.FC<{
     );
 };
 
-// Reusable Category Select Component with Tree Structure
+// Reusable Category Select Component with Tree Structure and Standard Desktop Dropdown
 const CategorySelect: React.FC<{
     value: string;
     onChange: (value: string) => void;
     accounts: any[];
     type: TransactionType;
-    t: (key: string) => string;
+    t: (key: string, params?: any) => string;
     error?: string;
     disabled?: boolean;
     language: string;
 }> = ({ value, onChange, accounts, type, t, error, disabled, language }) => {
     const [isOpen, setIsOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
     const containerRef = useRef<HTMLDivElement>(null);
-    
-    // Filter accounts based on type
+    const searchInputRef = useRef<HTMLInputElement>(null);
+
+    // Filter accounts based on type (Income / Expense)
     const filteredAccounts = useMemo(() => accounts.filter(c => c.type === type), [accounts, type]);
 
-    // Initialize expanded state to show the selected item
-    const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
-        const initial = new Set<string>();
-        if (value) {
-            let current = filteredAccounts.find(a => a.name === value);
-            while (current && current.isSubOf) {
-                initial.add(current.isSubOf);
-                current = filteredAccounts.find(a => a.id === current?.isSubOf);
-            }
-        }
-        return initial;
-    });
+    // Build children mapping and identify parent IDs
+    const { childrenMap, roots, allParentIds } = useMemo(() => {
+        const cMap = new Map<string, any[]>();
+        const rList: any[] = [];
+        const pIds = new Set<string>();
 
+        filteredAccounts.forEach(c => {
+            if (c.isSubOf && filteredAccounts.some(p => p.id === c.isSubOf)) {
+                const list = cMap.get(c.isSubOf) || [];
+                list.push(c);
+                cMap.set(c.isSubOf, list);
+                pIds.add(c.isSubOf);
+            } else {
+                rList.push(c);
+            }
+        });
+
+        return {
+            childrenMap: cMap,
+            roots: rList.sort((a, b) => (a.code || '').localeCompare(b.code || '')),
+            allParentIds: pIds
+        };
+    }, [filteredAccounts]);
+
+    // Initialize all parent groups as expanded by default so all category lists are displayed
+    const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set(allParentIds));
+
+    // Reset expanded state whenever type or accounts change
+    useEffect(() => {
+        setExpandedIds(new Set(allParentIds));
+    }, [allParentIds]);
+
+    // Ensure selected category's parent path is expanded
+    useEffect(() => {
+        if (value) {
+            setExpandedIds(prev => {
+                const next = new Set(prev);
+                let current = filteredAccounts.find(a => a.name === value);
+                while (current && current.isSubOf) {
+                    next.add(current.isSubOf);
+                    current = filteredAccounts.find(a => a.id === current?.isSubOf);
+                }
+                return next;
+            });
+        }
+    }, [value, filteredAccounts]);
+
+    // Focus search on open
+    useEffect(() => {
+        if (isOpen) {
+            setSearchQuery('');
+            const timer = setTimeout(() => {
+                searchInputRef.current?.focus();
+            }, 60);
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen]);
+
+    // Close on click outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -199,40 +247,16 @@ const CategorySelect: React.FC<{
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const treeItems = useMemo(() => {
-        const childrenMap = new Map<string, any[]>();
-        const roots: any[] = [];
-
-        // Build hierarchy
-        filteredAccounts.forEach(c => {
-            if (c.isSubOf && filteredAccounts.some(p => p.id === c.isSubOf)) {
-                const list = childrenMap.get(c.isSubOf) || [];
-                list.push(c);
-                childrenMap.set(c.isSubOf, list);
-            } else {
-                roots.push(c);
+    // Close on Escape key
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && isOpen) {
+                setIsOpen(false);
             }
-        });
-
-        const flatten = (nodes: any[], depth: number): Array<any & { depth: number, hasChildren: boolean }> => {
-            return nodes.sort((a, b) => a.code.localeCompare(b.code)).flatMap(node => {
-                const children = childrenMap.get(node.id) || [];
-                const hasChildren = children.length > 0;
-                const isExpanded = expandedIds.has(node.id);
-                
-                const item = { ...node, depth, hasChildren };
-                
-                if (hasChildren && isExpanded) {
-                    return [item, ...flatten(children, depth + 1)];
-                }
-                return [item];
-            });
         };
-
-        return flatten(roots, 0);
-    }, [filteredAccounts, expandedIds]);
-
-    const selectedAccount = filteredAccounts.find(a => a.name === value);
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen]);
 
     const toggleExpand = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
@@ -244,79 +268,305 @@ const CategorySelect: React.FC<{
         });
     };
 
-    const getDisplayName = (account: any) => {
-        const name = language === 'km' && account.localName ? account.localName : account.name;
-        return `${account.code}-${name}`;
+    const getLocalizedName = (account: any) => {
+        return language === 'km' && account.localName ? account.localName : account.name;
+    };
+
+    const getSecondaryName = (account: any) => {
+        if (language === 'km') {
+            return account.name;
+        }
+        return account.localName || null;
+    };
+
+    // Filtered search results or hierarchical tree items
+    const isSearching = searchQuery.trim().length > 0;
+
+    const searchResults = useMemo(() => {
+        if (!isSearching) return [];
+        const q = searchQuery.trim().toLowerCase();
+
+        return filteredAccounts.filter(c => {
+            const code = (c.code || '').toLowerCase();
+            const name = (c.name || '').toLowerCase();
+            const local = (c.localName || '').toLowerCase();
+            return code.includes(q) || name.includes(q) || local.includes(q);
+        }).map(item => {
+            const parent = item.isSubOf ? filteredAccounts.find(p => p.id === item.isSubOf) : null;
+            return {
+                ...item,
+                parentName: parent ? getLocalizedName(parent) : null,
+                hasChildren: allParentIds.has(item.id)
+            };
+        }).sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+    }, [isSearching, searchQuery, filteredAccounts, allParentIds, language]);
+
+    const treeItems = useMemo(() => {
+        if (isSearching) return [];
+
+        const flatten = (nodes: any[], depth: number): Array<any & { depth: number, hasChildren: boolean }> => {
+            return nodes.sort((a, b) => (a.code || '').localeCompare(b.code || '')).flatMap(node => {
+                const children = childrenMap.get(node.id) || [];
+                const hasChildren = children.length > 0;
+                const isExpanded = expandedIds.has(node.id);
+
+                const item = { ...node, depth, hasChildren };
+
+                if (hasChildren && isExpanded) {
+                    return [item, ...flatten(children, depth + 1)];
+                }
+                return [item];
+            });
+        };
+
+        return flatten(roots, 0);
+    }, [isSearching, roots, childrenMap, expandedIds]);
+
+    const selectedAccount = filteredAccounts.find(a => a.name === value);
+
+    const handleSelectCategory = (categoryName: string) => {
+        onChange(categoryName);
+        setIsOpen(false);
     };
 
     return (
-        <div className="relative group" ref={containerRef}>
+        <div className={cn("relative group w-full", isOpen && "z-40")} ref={containerRef}>
+            {/* Trigger Button */}
             <div 
                 className={cn(
                     CLASSES.select, 
-                    "h-12 rounded-md border-2 flex items-center justify-between cursor-pointer bg-white dark:bg-dark-card pr-10", 
+                    "h-12 rounded-md border-2 flex items-center justify-between cursor-pointer bg-white dark:bg-dark-card pr-10 relative transition-all", 
                     isOpen && "ring-8 ring-emerald-500/5 border-emerald-500",
                     error && CLASSES.inputError,
                     disabled && "opacity-50 cursor-not-allowed"
                 )}
                 onClick={() => !disabled && setIsOpen(!isOpen)}
             >
-                <span className={cn("block truncate text-sm", !value && "text-gray-500")}>
-                    {selectedAccount ? getDisplayName(selectedAccount) : t('select_category')}
-                </span>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                {selectedAccount ? (
+                    <div className="flex items-center gap-2 min-w-0 pr-2">
+                        <span className="font-mono text-xs px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold shrink-0 border border-emerald-200/50 dark:border-emerald-800/50">
+                            {selectedAccount.code}
+                        </span>
+                        <span className="truncate text-sm font-semibold text-gray-800 dark:text-gray-100">
+                            {getLocalizedName(selectedAccount)}
+                        </span>
+                        {getSecondaryName(selectedAccount) && (
+                            <span className="text-xs text-gray-400 truncate hidden sm:inline">
+                                ({getSecondaryName(selectedAccount)})
+                            </span>
+                        )}
+                    </div>
+                ) : (
+                    <span className="block truncate text-sm text-gray-400 font-normal">
+                        {t('select_category')}
+                    </span>
+                )}
+                <ChevronDown 
+                    size={16} 
+                    className={cn(
+                        "absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none transition-transform duration-200",
+                        isOpen && "rotate-180 text-emerald-600"
+                    )} 
+                />
             </div>
 
+            {/* Dropdown Menu */}
             {isOpen && !disabled && (
                 <div className={cn(
-                    "bg-white dark:bg-[#1c2128] border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200",
-                    "fixed inset-0 z-[60] flex flex-col rounded-none border-0",
-                    "sm:absolute sm:inset-auto sm:top-full sm:left-0 sm:z-50 sm:w-full sm:mt-1 sm:rounded-xl sm:max-h-60 sm:border sm:flex sm:flex-col"
+                    "bg-white dark:bg-[#1c2128] border border-gray-200 dark:border-gray-700 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200",
+                    // Mobile: Fullscreen sheet modal with header & close button
+                    "fixed inset-0 z-[120] flex flex-col rounded-none border-0",
+                    // Desktop: Standard desktop dropdown anchored right below the input
+                    "sm:absolute sm:inset-auto sm:top-full sm:left-0 sm:z-50 sm:w-full sm:mt-1.5 sm:rounded-xl sm:border sm:max-h-96 sm:flex sm:flex-col sm:shadow-2xl"
                 )}>
-                    <div className="flex sm:hidden items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800 shrink-0 bg-white dark:bg-[#1c2128]">
-                        <Typography variant="h3" className="font-bold text-lg">{t('select_category')}</Typography>
+                    {/* Search & Actions Header */}
+                    <div className="p-2 sm:p-2.5 border-b border-gray-100 dark:border-gray-800 shrink-0 bg-gray-50/70 dark:bg-gray-800/40 flex items-center gap-2">
+                        <div className="relative flex-1">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                            <input 
+                                ref={searchInputRef}
+                                type="text"
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                placeholder={t('search_category', 'Search category or code...')}
+                                className={cn(CLASSES.input, "h-9 pl-9 pr-8 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-dark-card focus:border-emerald-500")}
+                            />
+                            {searchQuery && (
+                                <button 
+                                    type="button" 
+                                    onClick={() => setSearchQuery('')}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600"
+                                >
+                                    <X size={12} />
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Expand / Collapse All Toggle on Desktop */}
+                        {!isSearching && allParentIds.size > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (expandedIds.size === allParentIds.size) {
+                                        setExpandedIds(new Set());
+                                    } else {
+                                        setExpandedIds(new Set(allParentIds));
+                                    }
+                                }}
+                                className="text-[11px] font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 shrink-0 px-2.5 py-1.5 rounded-md hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors hidden sm:block border border-emerald-200/50 dark:border-emerald-800/30"
+                            >
+                                {expandedIds.size === allParentIds.size ? t('collapse_all', 'Collapse') : t('expand_all', 'Expand')}
+                            </button>
+                        )}
+
+                        {/* Mobile Close Button */}
                         <button 
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} 
-                            className="p-2 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-500"
+                            onClick={() => setIsOpen(false)} 
+                            className="sm:hidden p-2 bg-gray-100 dark:bg-gray-800 rounded-full text-gray-500"
                         >
-                            <X size={20} />
+                            <X size={18} />
                         </button>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto sm:overflow-auto p-2 sm:p-0">
-                        <div 
-                            className={cn("px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors", value === "" && "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600")}
-                            onClick={() => { onChange(""); setIsOpen(false); }}
-                        >
-                            {t('select_category')}
-                        </div>
-                        {treeItems.map(item => (
+                    {/* Scrollable Category List */}
+                    <div className="flex-1 min-h-0 overflow-y-auto p-1.5 scrollbar-thin space-y-0.5">
+                        {/* Clear Category Option */}
+                        {!isSearching && (
                             <div 
-                                key={item.id}
                                 className={cn(
-                                    "px-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center",
-                                    item.depth === 0 ? "py-2.5 font-bold text-base text-gray-900 dark:text-gray-100 bg-gray-50/50 dark:bg-gray-800/20 mt-0.5" : "py-2 text-sm text-gray-600 dark:text-gray-300",
-                                    value === item.name && "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 font-bold"
+                                    "px-3 py-2 text-xs font-medium cursor-pointer rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center justify-between text-gray-500",
+                                    value === "" && "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 font-semibold"
                                 )}
-                                style={{ paddingLeft: `${(item.depth * 16) + 12}px` }}
-                                onClick={() => { onChange(item.name); setIsOpen(false); }}
+                                onClick={() => handleSelectCategory("")}
                             >
-                                {item.hasChildren ? (
-                                    <button
-                                        type="button"
-                                        onClick={(e) => toggleExpand(e, item.id)}
-                                        className="p-1 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 mr-2 text-gray-800 dark:text-gray-200 transition-colors shrink-0 shadow-sm border border-gray-200 dark:border-gray-700 flex items-center justify-center"
-                                    >
-                                        {expandedIds.has(item.id) ? <ChevronDown size={16} strokeWidth={3} /> : <ChevronRight size={16} strokeWidth={3} />}
-                                    </button>
-                                ) : (
-                                    <span className="w-[26px] mr-2 inline-block shrink-0" />
-                                )}
-                                <span className="truncate">{getDisplayName(item)}</span>
-                                {value === item.name && <CheckCircle2 size={14} className="ml-auto text-emerald-600 shrink-0" />}
+                                <span>{t('select_category')}</span>
+                                {value === "" && <CheckCircle2 size={14} className="text-emerald-600" />}
                             </div>
-                        ))}
+                        )}
+
+                        {/* Search Mode: Flat Matched Results */}
+                        {isSearching ? (
+                            searchResults.length > 0 ? (
+                                searchResults.map(item => {
+                                    const isSelected = value === item.name;
+                                    return (
+                                        <div 
+                                            key={item.id}
+                                            className={cn(
+                                                "px-3 py-2 text-sm cursor-pointer rounded-lg transition-colors flex items-center justify-between gap-2",
+                                                isSelected 
+                                                    ? "bg-emerald-50 dark:bg-emerald-900/25 text-emerald-700 dark:text-emerald-300 font-semibold border-l-4 border-emerald-500" 
+                                                    : "hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-200"
+                                            )}
+                                            onClick={() => handleSelectCategory(item.name)}
+                                        >
+                                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                <span className="font-mono text-xs px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 font-bold shrink-0 border border-emerald-200/50 dark:border-emerald-800/40">
+                                                    {item.code}
+                                                </span>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="truncate font-medium text-xs sm:text-sm">
+                                                        {getLocalizedName(item)}
+                                                    </div>
+                                                    {item.parentName && (
+                                                        <div className="text-[10px] text-gray-400 truncate">
+                                                            {item.parentName}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            {isSelected && <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />}
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <div className="py-8 text-center text-gray-400 text-xs">
+                                    {t('no_categories_found', 'No categories found')}
+                                </div>
+                            )
+                        ) : (
+                            /* Tree Mode: Hierarchical expandable category list */
+                            treeItems.map(item => {
+                                const isSelected = value === item.name;
+                                const isExpanded = expandedIds.has(item.id);
+
+                                if (item.hasChildren) {
+                                    // Parent Category Group Row
+                                    return (
+                                        <div 
+                                            key={item.id}
+                                            className={cn(
+                                                "px-2.5 py-2 cursor-pointer transition-colors rounded-lg flex items-center justify-between select-none mt-1 group/header",
+                                                "bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-900 dark:text-gray-100 font-bold"
+                                            )}
+                                            style={{ paddingLeft: `${(item.depth * 18) + 10}px` }}
+                                            onClick={(e) => toggleExpand(e, item.id)}
+                                        >
+                                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => toggleExpand(e, item.id)}
+                                                    className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 transition-colors shrink-0"
+                                                >
+                                                    {isExpanded ? <ChevronDown size={14} strokeWidth={2.5} /> : <ChevronRight size={14} strokeWidth={2.5} />}
+                                                </button>
+                                                <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-gray-200/70 dark:bg-gray-700 text-gray-700 dark:text-gray-300 font-bold shrink-0">
+                                                    {item.code}
+                                                </span>
+                                                <span className="truncate text-xs sm:text-sm font-bold tracking-tight">
+                                                    {getLocalizedName(item)}
+                                                </span>
+                                            </div>
+                                            <span className="text-[10px] text-gray-400 font-normal shrink-0 ml-2">
+                                                {isExpanded ? t('collapse_all', 'Collapse') : t('expand_all', 'Expand')}
+                                            </span>
+                                        </div>
+                                    );
+                                }
+
+                                // Subcategory / Leaf Category Item
+                                return (
+                                    <div 
+                                        key={item.id}
+                                        className={cn(
+                                            "py-2 px-2.5 cursor-pointer rounded-lg transition-colors flex items-center justify-between gap-2",
+                                            isSelected 
+                                                ? "bg-emerald-50 dark:bg-emerald-900/25 text-emerald-700 dark:text-emerald-300 font-semibold border-l-4 border-emerald-500" 
+                                                : "hover:bg-gray-50 dark:hover:bg-gray-800/60 text-gray-700 dark:text-gray-300"
+                                        )}
+                                        style={{ paddingLeft: `${(item.depth * 20) + 18}px` }}
+                                        onClick={() => handleSelectCategory(item.name)}
+                                    >
+                                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-gray-300 dark:bg-gray-600 shrink-0" />
+                                            <span className="font-mono text-xs px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 font-bold shrink-0 border border-emerald-200/50 dark:border-emerald-800/40">
+                                                {item.code}
+                                            </span>
+                                            <span className="truncate text-xs sm:text-sm font-medium">
+                                                {getLocalizedName(item)}
+                                            </span>
+                                            {getSecondaryName(item) && (
+                                                <span className="text-xs text-gray-400 truncate hidden md:inline">
+                                                    ({getSecondaryName(item)})
+                                                </span>
+                                            )}
+                                        </div>
+                                        {isSelected && <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />}
+                                    </div>
+                                );
+                            })
+                        )}
+                    </div>
+
+                    {/* Desktop Dropdown Footer */}
+                    <div className="px-3 py-1.5 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/20 text-[11px] text-gray-400 flex justify-between items-center shrink-0">
+                        <span>{filteredAccounts.length} {t('categories', 'categories')}</span>
+                        {value && (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-medium truncate max-w-[220px]">
+                                {t('selected', 'Selected')}: {value}
+                            </span>
+                        )}
                     </div>
                 </div>
             )}
@@ -348,28 +598,34 @@ const AccountSelect: React.FC<{
     const selectedAccount = accounts.find(a => a.id === value);
 
     return (
-        <div className="relative group" ref={containerRef}>
+        <div className={cn("relative group w-full", isOpen && "z-30")} ref={containerRef}>
             <div 
                 className={cn(
                     CLASSES.select, 
-                    "h-12 rounded-md border-2 flex items-center justify-between cursor-pointer bg-white dark:bg-dark-card pr-10", 
+                    "h-12 rounded-md border-2 flex items-center justify-between cursor-pointer bg-white dark:bg-dark-card pr-10 relative transition-all", 
                     isOpen && "ring-8 ring-emerald-500/5 border-emerald-500",
                     error && CLASSES.inputError,
                     disabled && "opacity-50 cursor-not-allowed"
                 )}
                 onClick={() => !disabled && setIsOpen(!isOpen)}
             >
-                <span className={cn("block truncate text-sm", !value && "text-gray-500")}>
+                <span className={cn("block truncate text-sm", !value && "text-gray-400 font-normal")}>
                     {selectedAccount ? selectedAccount.name : t('select_account')}
                 </span>
-                <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <ChevronDown 
+                    size={16} 
+                    className={cn(
+                        "absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none transition-transform duration-200",
+                        isOpen && "rotate-180 text-emerald-600"
+                    )} 
+                />
             </div>
 
             {isOpen && !disabled && (
                 <div className={cn(
-                    "bg-white dark:bg-[#1c2128] border border-gray-200 dark:border-gray-700 shadow-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200",
-                    "fixed inset-0 z-[60] flex flex-col rounded-none border-0",
-                    "sm:absolute sm:inset-auto sm:top-full sm:left-0 sm:z-50 sm:w-full sm:mt-1 sm:rounded-xl sm:max-h-60 sm:border sm:flex sm:flex-col"
+                    "bg-white dark:bg-[#1c2128] border border-gray-200 dark:border-gray-700 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200",
+                    "fixed inset-0 z-[120] flex flex-col rounded-none border-0",
+                    "sm:absolute sm:inset-auto sm:top-full sm:left-0 sm:z-50 sm:w-full sm:mt-1.5 sm:rounded-xl sm:border sm:max-h-80 sm:flex sm:flex-col sm:shadow-2xl"
                 )}>
                     <div className="flex sm:hidden items-center justify-between p-4 border-b border-gray-100 dark:border-gray-800 shrink-0 bg-white dark:bg-[#1c2128]">
                         <Typography variant="h3" className="font-bold text-lg">{t('select_account')}</Typography>
@@ -382,9 +638,9 @@ const AccountSelect: React.FC<{
                         </button>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto sm:overflow-auto p-2 sm:p-0">
+                    <div className="flex-1 min-h-0 overflow-y-auto p-1.5 scrollbar-thin space-y-0.5">
                         <div 
-                            className={cn("px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors", value === "" && "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600")}
+                            className={cn("px-3 py-2 text-xs font-medium cursor-pointer rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-gray-500", value === "" && "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 font-semibold")}
                             onClick={() => { onChange(""); setIsOpen(false); }}
                         >
                             {t('select_account')}
@@ -393,13 +649,13 @@ const AccountSelect: React.FC<{
                             <div 
                                 key={account.id}
                                 className={cn(
-                                    "px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center justify-between",
-                                    value === account.id && "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 font-medium"
+                                    "px-3 py-2 text-sm cursor-pointer rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center justify-between",
+                                    value === account.id && "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 font-semibold"
                                 )}
                                 onClick={() => { onChange(account.id); setIsOpen(false); }}
                             >
                                 <span className="truncate">{account.name}</span>
-                                {value === account.id && <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />}
+                                {value === account.id && <CheckCircle2 size={15} className="text-emerald-600 shrink-0" />}
                             </div>
                         ))}
                     </div>
@@ -408,6 +664,7 @@ const AccountSelect: React.FC<{
         </div>
     );
 };
+
 
 const Pagination: React.FC<{
     currentPage: number;
@@ -1328,21 +1585,24 @@ export const Transactions: React.FC = () => {
                                     </div>
                                 )}
                                 
-                                <div className="space-y-4">
+                                                                <div className="space-y-4">
+                                    {/* 1. Classification (Category): Dedicated full-width row for clear, comprehensive desktop category selection */}
+                                    <div className="space-y-1">
+                                        <Typography variant="label" className="text-sm font-normal">{t('classification')}</Typography>
+                                        <CategorySelect 
+                                            value={formData.category}
+                                            onChange={v => handleFieldChange('category', v)}
+                                            accounts={chartOfAccounts}
+                                            type={formData.type}
+                                            t={t}
+                                            error={errors.category}
+                                            language={settings.language}
+                                        />
+                                        {errors.category && <Typography variant="caption" className="text-red-500 font-bold px-1 block animate-in fade-in slide-in-from-top-1 text-[10px]">{errors.category}</Typography>}
+                                    </div>
+
+                                    {/* 2. Payment Source and Amount: Balanced 2-column grid on desktop */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <Typography variant="label" className="text-sm font-normal">{t('classification')}</Typography>
-                                            <CategorySelect 
-                                                value={formData.category}
-                                                onChange={v => handleFieldChange('category', v)}
-                                                accounts={chartOfAccounts}
-                                                type={formData.type}
-                                                t={t}
-                                                error={errors.category}
-                                                language={settings.language}
-                                            />
-                                            {errors.category && <Typography variant="caption" className="text-red-500 font-bold px-1 block animate-in fade-in slide-in-from-top-1 text-[10px]">{errors.category}</Typography>}
-                                        </div>
                                         <div className="space-y-1">
                                             <Typography variant="label" className="text-sm font-normal">{t('payment_source')}</Typography>
                                             <AccountSelect 
@@ -1375,19 +1635,19 @@ export const Transactions: React.FC = () => {
                                                 </div>
                                             )}
                                         </div>
-                                    </div>
 
-                                    <div className="space-y-1">
-                                        {/* Rule: Form Input -> text-base font-semibold */}
-                                        <NumericInput 
-                                            label={t('amount')}
-                                            required 
-                                            value={formData.amount} 
-                                            onChange={v => handleFieldChange('amount', v)} 
-                                            error={errors.amount} 
-                                            inputClassName="h-12 border-2 text-base font-semibold"
-                                            suffix={formData.currency as string}
-                                        />
+                                        <div className="space-y-1">
+                                            {/* Rule: Form Input -> text-base font-semibold */}
+                                            <NumericInput 
+                                                label={t('amount')}
+                                                required 
+                                                value={formData.amount} 
+                                                onChange={v => handleFieldChange('amount', v)} 
+                                                error={errors.amount} 
+                                                inputClassName="h-12 border-2 text-base font-semibold"
+                                                suffix={formData.currency as string}
+                                            />
+                                        </div>
                                     </div>
 
                                     <CustomDatePicker 
