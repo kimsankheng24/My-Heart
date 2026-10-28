@@ -7,7 +7,7 @@ import {
     ArrowUpRight, ArrowDownRight, Wallet, Info, 
     ChevronRight, X, 
     History, ChevronDown, Landmark, Clock, User as UserIcon, Coins,
-    Tag, Settings2, BarChart3, TrendingUp, TrendingDown
+    Tag, Settings2, BarChart3, TrendingUp, TrendingDown, Minus
 } from 'lucide-react';
 import { 
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell 
@@ -135,6 +135,22 @@ const TooltipButton: React.FC<{ tooltip: string; variant?: 'default' | 'primary'
   );
 };
 
+/**
+ * Calculates month-over-month percentage change using standard financial methodology:
+ * Formula: ((Current - Prior) / |Prior|) * 100
+ * - If prior === 0 and current === 0: 0% change (neutral flat)
+ * - If prior === 0 and current > 0: +100% (inflow / expense starting from zero base)
+ * - If prior > 0 and current === 0: -100% (complete reduction to zero)
+ * - If prior > 0: standard rate of change
+ */
+const calculateFinancialTrend = (current: number, prior: number): number | undefined => {
+  if (prior === 0) {
+    if (current === 0) return 0;
+    return 100;
+  }
+  return ((current - prior) / Math.abs(prior)) * 100;
+};
+
 const KPICard: React.FC<{
   title: string;
   amount: number;
@@ -148,9 +164,18 @@ const KPICard: React.FC<{
   invertTrendColor?: boolean;
   variant?: 'default' | 'primary';
 }> = ({ title, amount, currency, icon: Icon, trend, trendLabel, color, tooltip, lang, invertTrendColor, variant = 'default' }) => {
-  const trendColorClass = invertTrendColor 
-    ? (trend && trend >= 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")
-    : (trend && trend >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400");
+  const isZeroTrend = trend !== undefined && Math.abs(trend) < 0.005;
+  const isPositiveTrend = trend !== undefined && trend > 0.005;
+  const isNegativeTrend = trend !== undefined && trend < -0.005;
+
+  // Standard Financial Sentiment Colors:
+  // Income: positive is favorable (green), negative is unfavorable (red), flat is neutral gray
+  // Expenses (invertTrendColor): positive is unfavorable (red), negative is favorable (green), flat is neutral gray
+  const trendColorClass = isZeroTrend
+    ? "text-gray-500 dark:text-gray-400"
+    : invertTrendColor
+      ? (isPositiveTrend ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")
+      : (isPositiveTrend ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400");
 
   if (variant === 'primary') {
     return (
@@ -211,10 +236,12 @@ const KPICard: React.FC<{
         {trend !== undefined && !isNaN(trend) && (
             <div className="flex items-center gap-1.5 mt-1.5">
                 <span className={cn("text-[10px] font-bold flex items-center", trendColorClass)}>
-                    {trend >= 0 ? <TrendingUp size={12} className="mr-1"/> : <TrendingDown size={12} className="mr-1"/>}
-                    {Math.abs(trend).toFixed(2)}%
+                    {isPositiveTrend && <TrendingUp size={12} className="mr-0.5 shrink-0"/>}
+                    {isNegativeTrend && <TrendingDown size={12} className="mr-0.5 shrink-0"/>}
+                    {isZeroTrend && <Minus size={12} className="mr-0.5 shrink-0"/>}
+                    {isPositiveTrend ? `+${trend.toFixed(2)}%` : isNegativeTrend ? `-${Math.abs(trend).toFixed(2)}%` : '0.00%'}
                 </span>
-                {trendLabel && <span className="text-[10px] opacity-70 truncate">in {trendLabel}</span>}
+                {trendLabel && <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{trendLabel}</span>}
             </div>
         )}
       </div>
@@ -229,16 +256,16 @@ export const Dashboard: React.FC = () => {
   // Global Date Filter State (For KPIs - Default to This Month)
   const [startDate] = useState(() => {
     const nowISO = getPhnomPenhNowISO();
-    const year = parseInt(nowISO.split('-')[0]);
-    const month = parseInt(nowISO.split('-')[1]);
-    return `${year}-${String(month).padStart(2, '0')}-01`;
+    const [yStr, mStr] = nowISO.split('-');
+    return `${yStr}-${mStr}-01`;
   });
   const [endDate] = useState(() => {
     const nowISO = getPhnomPenhNowISO();
-    const year = parseInt(nowISO.split('-')[0]);
-    const month = parseInt(nowISO.split('-')[1]);
+    const [yStr, mStr] = nowISO.split('-');
+    const year = parseInt(yStr);
+    const month = parseInt(mStr);
     const lastDay = new Date(year, month, 0).getDate();
-    return `${year}-${String(month).padStart(2, '0')}-${lastDay}`;
+    return `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
   });
   
   // Independent Chart Filter States
@@ -387,30 +414,41 @@ export const Dashboard: React.FC = () => {
   const rangeExpense = useMemo(() => rangeTransactions.filter(t => t.type === TransactionType.EXPENSE).reduce((sum, t) => sum + convertToDefault(t.amount, t.currency, settings.defaultCurrency, settings.exchangeRates), 0), [rangeTransactions, settings]);
 
   const prevPeriodRange = useMemo(() => {
-    const s = new Date(startDate);
-    const e = new Date(endDate);
-    
-    // Check if it's a full month selection
-    const isStartFirst = s.getDate() === 1;
-    const isEndLast = new Date(e.getFullYear(), e.getMonth() + 1, 0).getDate() === e.getDate();
-    const isSameMonth = s.getMonth() === e.getMonth() && s.getFullYear() === e.getFullYear();
+    const [sY, sM, sD] = startDate.split('-').map(Number);
+    const [eY, eM, eD] = endDate.split('-').map(Number);
 
-    if (isStartFirst && isEndLast && isSameMonth) {
-        // It's a full single month, so previous period is the previous full month
-        const prevStart = new Date(s);
-        prevStart.setMonth(prevStart.getMonth() - 1);
-        const prevEnd = new Date(prevStart.getFullYear(), prevStart.getMonth() + 1, 0);
+    // Check if it's a full calendar month
+    const lastDayThisMonth = new Date(sY, sM, 0).getDate();
+    const isFullMonth = sD === 1 && eD === lastDayThisMonth && sY === eY && sM === eM;
+
+    if (isFullMonth) {
+        let prevM = sM - 1;
+        let prevY = sY;
+        if (prevM === 0) {
+            prevM = 12;
+            prevY -= 1;
+        }
+        const prevLastDay = new Date(prevY, prevM, 0).getDate();
         return {
-            start: prevStart.toISOString().split('T')[0],
-            end: prevEnd.toISOString().split('T')[0]
+            start: `${prevY}-${String(prevM).padStart(2, '0')}-01`,
+            end: `${prevY}-${String(prevM).padStart(2, '0')}-${String(prevLastDay).padStart(2, '0')}`
         };
     }
 
-    const diff = Math.abs(e.getTime() - s.getTime());
-    const days = Math.ceil(diff / (1000 * 3600 * 24)) + 1;
-    const pEnd = new Date(s); pEnd.setDate(pEnd.getDate() - 1);
-    const pStart = new Date(pEnd); pStart.setDate(pEnd.getDate() - days + 1);
-    return { start: pStart.toISOString().split('T')[0], end: pEnd.toISOString().split('T')[0] };
+    // Fallback for custom ranges: shift backward by same duration without timezone offset
+    const s = new Date(sY, sM - 1, sD, 12, 0, 0);
+    const e = new Date(eY, eM - 1, eD, 12, 0, 0);
+    const diffDays = Math.round((e.getTime() - s.getTime()) / (1000 * 3600 * 24)) + 1;
+    const pEnd = new Date(s);
+    pEnd.setDate(pEnd.getDate() - 1);
+    const pStart = new Date(pEnd);
+    pStart.setDate(pEnd.getDate() - diffDays + 1);
+
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return {
+        start: `${pStart.getFullYear()}-${pad(pStart.getMonth() + 1)}-${pad(pStart.getDate())}`,
+        end: `${pEnd.getFullYear()}-${pad(pEnd.getMonth() + 1)}-${pad(pEnd.getDate())}`
+    };
   }, [startDate, endDate]);
 
   const prevRangeTransactions = useMemo(() => transactions.filter(t => {
@@ -420,13 +458,11 @@ export const Dashboard: React.FC = () => {
   const prevIncome = prevRangeTransactions.filter(t => t.type === TransactionType.INCOME).reduce((s, t) => s + convertToDefault(t.amount, t.currency, settings.defaultCurrency, settings.exchangeRates), 0);
   const prevExpense = prevRangeTransactions.filter(t => t.type === TransactionType.EXPENSE).reduce((s, t) => s + convertToDefault(t.amount, t.currency, settings.defaultCurrency, settings.exchangeRates), 0);
   
-  const incomeTrend = prevIncome > 0 ? ((rangeIncome - prevIncome) / prevIncome) * 100 : (rangeIncome > 0 ? 100 : undefined);
-  const expenseTrend = prevExpense > 0 ? ((rangeExpense - prevExpense) / prevExpense) * 100 : (rangeExpense > 0 ? 100 : undefined);
+  // Standard Financial Trend (MoM % Change: ((Current - Prior) / |Prior|) * 100)
+  const incomeTrend = calculateFinancialTrend(rangeIncome, prevIncome);
+  const expenseTrend = calculateFinancialTrend(rangeExpense, prevExpense);
 
-  const prevPeriodLabel = useMemo(() => {
-      const s = new Date(prevPeriodRange.start);
-      return s.toLocaleDateString(settings.language === 'km' ? 'km-KH' : 'en-US', { month: 'short', year: 'numeric' });
-  }, [prevPeriodRange, settings.language]);
+  const prevPeriodLabel = t('from_last_month');
 
   const recentTransactions = useMemo(() => [...rangeTransactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 9), [rangeTransactions]);
 
