@@ -5,7 +5,7 @@ import { useApp } from '../store';
 import { formatCurrency, convertToDefault, cn, CLASSES, getPhnomPenhNowISO, formatDate } from '../utils';
 import { BudgetsMenu } from './menus/BudgetsMenu';
 import { 
-    X, AlertTriangle, Loader2, Calendar, Trash2, CheckCircle2, ChevronDown, PiggyBank, ChevronRight, FileSpreadsheet, Download, Upload, Info
+    X, AlertTriangle, Loader2, Calendar, Trash2, CheckCircle2, ChevronDown, PiggyBank, ChevronRight, FileSpreadsheet, Download, Upload, Info, ShieldAlert
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Currency, Budget, TransactionType, BudgetTemplate, ChartOfAccount } from '../types';
@@ -386,6 +386,24 @@ export const Budgets: React.FC = () => {
     
     // View State
     const [activeTab, setActiveTab] = useState<'Budgets' | 'Templates'>('Budgets');
+
+    if (!can('Budgets', 'view')) {
+        return (
+            <div className={cn(CLASSES.container, "!px-2 md:!px-4 lg:!px-6 !space-y-4 pb-24")}>
+                <div className={cn(CLASSES.card, "p-8 md:p-12 text-center max-w-lg mx-auto my-12 space-y-4 border-dashed border-2")}>
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-800">
+                        <ShieldAlert size={32} />
+                    </div>
+                    <Typography variant="h2" className="text-lg font-bold text-gray-900 dark:text-white">
+                        {t('access_denied')}
+                    </Typography>
+                    <Typography variant="body" className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto text-sm">
+                        {t('module_access_restricted')}
+                    </Typography>
+                </div>
+            </div>
+        );
+    }
     const [isAddOpen, setAddOpen] = useState(false);
     
     // Edit/Action State
@@ -1351,9 +1369,9 @@ export const Budgets: React.FC = () => {
                                                         {row.budget && (
                                                             <div className="flex justify-center">
                                                                 <BudgetsMenu 
-                                                                    onEdit={() => openEdit(row.budget!)} 
-                                                                    onDelete={() => { setBudgetToDelete(row.budget!.id); setDeleteConfirmOpen(true); }} 
-                                                                    onSaveAsTemplate={() => handleSaveAsTemplate(row.budget!)}
+                                                                    onEdit={can('Budgets', 'edit') ? () => openEdit(row.budget!) : undefined} 
+                                                                    onDelete={can('Budgets', 'delete') ? () => { setBudgetToDelete(row.budget!.id); setDeleteConfirmOpen(true); } : undefined} 
+                                                                    onSaveAsTemplate={can('Budgets', 'add') ? () => handleSaveAsTemplate(row.budget!) : undefined}
                                                                 />
                                                             </div>
                                                         )}
@@ -1393,9 +1411,9 @@ export const Budgets: React.FC = () => {
                                             </div>
                                         </div>
                                         <BudgetsMenu 
-                                            onUseTemplate={() => handleUseTemplate(tmpl)}
-                                            onEdit={() => openEditTemplate(tmpl)}
-                                            onDelete={() => { setTemplateToDelete(tmpl.id); setIsTemplateDeleteConfirmOpen(true); }}
+                                            onUseTemplate={can('Budgets', 'add') ? () => handleUseTemplate(tmpl) : undefined}
+                                            onEdit={can('Budgets', 'edit') ? () => openEditTemplate(tmpl) : undefined}
+                                            onDelete={can('Budgets', 'delete') ? () => { setTemplateToDelete(tmpl.id); setIsTemplateDeleteConfirmOpen(true); } : undefined}
                                         />
                                     </div>
                                     <div className="pt-0.5">

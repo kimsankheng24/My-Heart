@@ -12,7 +12,7 @@ import {
     Activity, Search, Info, AlertTriangle, ChevronDown, History,
     FileText, Loader2,
     File, Image as ImageIcon, Paperclip, Download,
-    Check, Clock
+    Check, Clock, ShieldAlert
 } from 'lucide-react';
 import { NumericInput } from './NumericInput';
 import { Typography } from './Typography';
@@ -109,7 +109,7 @@ export const Assets: React.FC = () => {
     const { 
         assets, liabilities, addAsset, updateAsset, deleteAsset, addLiability, updateLiability, deleteLiability, 
         settings, t, updateAssetValuation, updateLiabilityBalance, chartOfAccounts,
-        markAssetAsSold, markLiabilityAsPaidOff
+        markAssetAsSold, markLiabilityAsPaidOff, can
     } = useApp();
     
     const [activeTab, setActiveTab] = useState<'Assets' | 'Liabilities'>('Assets');
@@ -148,6 +148,24 @@ export const Assets: React.FC = () => {
     const [liabForm, setLiabForm] = useState({ glCode: '', name: '', localName: '', type: '' as any, amount: '', remaining: '', interestRate: '', monthlyPayment: '', currency: '' as any, startDate: new Date().toISOString().split('T')[0], endDate: '', status: 'Active' as any, note: '' });
     const [actionForm, setActionForm] = useState({ amount: '', date: new Date().toISOString().split('T')[0], note: '' });
     const [soldForm, setSoldForm] = useState({ salePrice: '', saleDate: new Date().toISOString().split('T')[0] });
+
+    if (!can('Assets', 'view')) {
+        return (
+            <div className={cn(CLASSES.container, "!px-2 md:!px-4 lg:!px-6 !space-y-4 pb-24")}>
+                <div className={cn(CLASSES.card, "p-8 md:p-12 text-center max-w-lg mx-auto my-12 space-y-4 border-dashed border-2")}>
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-800">
+                        <ShieldAlert size={32} />
+                    </div>
+                    <Typography variant="h2" className="text-lg font-bold text-gray-900 dark:text-white">
+                        {t('access_denied')}
+                    </Typography>
+                    <Typography variant="body" className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto text-sm">
+                        {t('module_access_restricted')}
+                    </Typography>
+                </div>
+            </div>
+        );
+    }
     const [paidOffForm, setPaidOffForm] = useState({ payoffDate: new Date().toISOString().split('T')[0] });
 
     // Robust Viewport tracking for mobile pinning
@@ -731,17 +749,19 @@ export const Assets: React.FC = () => {
                             <Download size={18} />
                         </button>
                         {/* Rule: Rounded-xl for Buttons */}
-                        <button 
-                            onClick={() => { 
-                                resetForms();
-                                if (activeTab === 'Assets') setAddAssetOpen(true); 
-                                else setAddLiabilityOpen(true); 
-                            }} 
-                            className={cn(CLASSES.buttonPrimary, "h-10 px-3 sm:px-5 shadow-none rounded-xl")}
-                        >
-                            <PlusCircle size={18} /> 
-                            <span className="hidden sm:inline">{activeTab === 'Assets' ? t('add_asset') : t('add_liability')}</span>
-                        </button>
+                        {can('Assets', 'add') && (
+                            <button 
+                                onClick={() => { 
+                                    resetForms();
+                                    if (activeTab === 'Assets') setAddAssetOpen(true); 
+                                    else setAddLiabilityOpen(true); 
+                                }} 
+                                className={cn(CLASSES.buttonPrimary, "h-10 px-3 sm:px-5 shadow-none rounded-xl")}
+                            >
+                                <PlusCircle size={18} /> 
+                                <span className="hidden sm:inline">{activeTab === 'Assets' ? t('add_asset') : t('add_liability')}</span>
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -787,7 +807,7 @@ export const Assets: React.FC = () => {
                                                 <td className={cn(premiumTd, "text-right tabular-nums text-sm md:text-base font-medium", a.currentValue < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>{formatCurrency(a.currentValue, a.currency, settings.language)}</td>
                                                 <td className={cn(premiumTd, "text-right tabular-nums text-sm md:text-base font-medium", a.currentValue >= a.cost ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>{a.currentValue >= a.cost ? '+' : ''}{formatCurrency(a.currentValue - a.cost, a.currency, settings.language)}</td>
                                                 <td className={cn(premiumTd, "text-center sticky right-0 z-10 border-l border-gray-100 dark:border-dark-border shadow-[-4px_0_12px_rgba(0,0,0,0.03)] pr-4 bg-white dark:bg-[#161b22] group-hover:bg-[#f0fdf4] dark:group-hover:bg-[#19221d]")} onClick={e => e.stopPropagation()}>
-                                                    <div className="flex justify-center"><AssetsMenu onView={() => openDetailsModal(a.id, 'asset')} onEdit={() => openEditAsset(a)} onUpdate={() => { setViewingItem({id: a.id, type: 'asset'}); setActionForm({amount: a.currentValue.toLocaleString(), date: getPhnomPenhNowISO().split('T')[0], note: ''}); setUpdateValueOpen(true); }} onDelete={() => { setDeleteTarget({id: a.id, type:'asset', name: a.name}); setDeleteConfirmOpen(true); }} onMarkAsSold={a.status !== 'Sold' ? () => { setViewingItem({id: a.id, type: 'asset'}); setSoldForm({salePrice: a.currentValue.toLocaleString(), saleDate: getPhnomPenhNowISO().split('T')[0]}); setMarkAsSoldOpen(true); } : undefined} /></div>
+                                                    <div className="flex justify-center"><AssetsMenu onView={() => openDetailsModal(a.id, 'asset')} onEdit={can('Assets', 'edit') ? () => openEditAsset(a) : undefined} onUpdate={can('Assets', 'edit') ? () => { setViewingItem({id: a.id, type: 'asset'}); setActionForm({amount: a.currentValue.toLocaleString(), date: getPhnomPenhNowISO().split('T')[0], note: ''}); setUpdateValueOpen(true); } : undefined} onDelete={can('Assets', 'delete') ? () => { setDeleteTarget({id: a.id, type:'asset', name: a.name}); setDeleteConfirmOpen(true); } : undefined} onMarkAsSold={can('Assets', 'edit') && a.status !== 'Sold' ? () => { setViewingItem({id: a.id, type: 'asset'}); setSoldForm({salePrice: a.currentValue.toLocaleString(), saleDate: getPhnomPenhNowISO().split('T')[0]}); setMarkAsSoldOpen(true); } : undefined} /></div>
                                                 </td>
                                             </tr>
                                         ))
@@ -824,7 +844,7 @@ export const Assets: React.FC = () => {
                                                 <td className={cn(premiumTd, "text-right tabular-nums text-sm md:text-base font-medium", l.remaining < 0 ? "text-red-600 dark:text-red-400" : "text-red-600 dark:text-red-400")}>{formatCurrency(l.remaining, l.currency, settings.language)}</td>
                                                 <td className={cn(premiumTd, "text-right tabular-nums text-sm md:text-base font-medium", (l.amount - l.remaining) < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>{l.amount - l.remaining >= 0 ? '+' : ''}{formatCurrency(l.amount - l.remaining, l.currency, settings.language)}</td>
                                                 <td className={cn(premiumTd, "text-center sticky right-0 z-10 border-l border-gray-100 dark:border-dark-border shadow-[-4px_0_12px_rgba(0,0,0,0.03)] pr-4 bg-white dark:bg-[#161b22] group-hover:bg-[#f0fdf4] dark:group-hover:bg-[#19221d]")} onClick={e => e.stopPropagation()}>
-                                                    <div className="flex justify-center"><AssetsMenu onView={() => openDetailsModal(l.id, 'liability')} onEdit={() => openEditLiability(l)} onUpdate={() => { setViewingItem({id: l.id, type: 'liability'}); setActionForm({amount: l.remaining.toLocaleString(), date: getPhnomPenhNowISO().split('T')[0], note: ''}); setUpdateValueOpen(true); }} onDelete={() => { setDeleteTarget({id: l.id, type:'liability', name: l.name}); setDeleteConfirmOpen(true); }} onMarkAsPaidOff={l.status !== 'Paid Off' ? () => { setViewingItem({id: l.id, type: 'liability'}); setPaidOffForm({payoffDate: getPhnomPenhNowISO().split('T')[0]}); setMarkAsPaidOffOpen(true); } : undefined} /></div>
+                                                    <div className="flex justify-center"><AssetsMenu onView={() => openDetailsModal(l.id, 'liability')} onEdit={can('Assets', 'edit') ? () => openEditLiability(l) : undefined} onUpdate={can('Assets', 'edit') ? () => { setViewingItem({id: l.id, type: 'liability'}); setActionForm({amount: l.remaining.toLocaleString(), date: getPhnomPenhNowISO().split('T')[0], note: ''}); setUpdateValueOpen(true); } : undefined} onDelete={can('Assets', 'delete') ? () => { setDeleteTarget({id: l.id, type:'liability', name: l.name}); setDeleteConfirmOpen(true); } : undefined} onMarkAsPaidOff={can('Assets', 'edit') && l.status !== 'Paid Off' ? () => { setViewingItem({id: l.id, type: 'liability'}); setPaidOffForm({payoffDate: getPhnomPenhNowISO().split('T')[0]}); setMarkAsPaidOffOpen(true); } : undefined} /></div>
                                                 </td>
                                             </tr>
                                         ))

@@ -6,7 +6,7 @@ import { convertToDefault, formatCurrency, formatDate, formatDateTime, cn, CLASS
 import { 
     Download, 
     Heart, Calendar, ChevronDown, Info,
-    FileText, Scale, ArrowRightLeft, Wallet
+    FileText, Scale, ArrowRightLeft, Wallet, ShieldAlert
 } from 'lucide-react';
 import { Typography } from './Typography';
 import { CustomDatePicker } from './CustomDatePicker';
@@ -129,8 +129,26 @@ const IncomeStatementRow: React.FC<{ node: IncomeStatementNode; level: number; s
 };
 
 export const Reports: React.FC = () => {
-    const { transactions, accounts, assets, liabilities, settings, t, chartOfAccounts } = useApp();
+    const { transactions, accounts, assets, liabilities, settings, t, chartOfAccounts, can } = useApp();
     const [activeReport, setActiveReport] = useState<ReportType>('Income Statement');
+
+    if (!can('Reports', 'view')) {
+        return (
+            <div className={cn(CLASSES.container, "!px-2 md:!px-4 lg:!px-6 !space-y-4 pb-24")}>
+                <div className={cn(CLASSES.card, "p-8 md:p-12 text-center max-w-lg mx-auto my-12 space-y-4 border-dashed border-2")}>
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-800">
+                        <ShieldAlert size={32} />
+                    </div>
+                    <Typography variant="h2" className="text-lg font-bold text-gray-900 dark:text-white">
+                        {t('access_denied')}
+                    </Typography>
+                    <Typography variant="body" className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto text-sm">
+                        {t('module_access_restricted')}
+                    </Typography>
+                </div>
+            </div>
+        );
+    }
     
     // Initial State: This Year (Phnom Penh Time)
     const [startDate, setStartDate] = useState(() => {

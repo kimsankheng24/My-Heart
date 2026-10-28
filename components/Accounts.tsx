@@ -6,7 +6,7 @@ import { formatCurrency, cn, CLASSES, convertToDefault, getPhnomPenhNowISO, comp
 import { AccountsMenu } from './menus/AccountsMenu';
 import {
     PlusCircle, Landmark, Wallet, ChevronDown, X, Loader2, AlertTriangle, Info, Coins,
-    CalendarSync, CheckCircle2, PiggyBank, Calendar, Percent, Eye, EyeOff
+    CalendarSync, CheckCircle2, PiggyBank, Calendar, Percent, Eye, EyeOff, ShieldAlert
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { NumericInput } from './NumericInput';
@@ -210,6 +210,24 @@ export const Accounts: React.FC = () => {
 
     // UI State
     const [filterType, setFilterType] = useState<string>('All');
+
+    if (!can('Accounts', 'view')) {
+        return (
+            <div className={cn(CLASSES.container, "!px-2 md:!px-4 lg:!px-6 !space-y-4 pb-24")}>
+                <div className={cn(CLASSES.card, "p-8 md:p-12 text-center max-w-lg mx-auto my-12 space-y-4 border-dashed border-2")}>
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-800">
+                        <ShieldAlert size={32} />
+                    </div>
+                    <Typography variant="h2" className="text-lg font-bold text-gray-900 dark:text-white">
+                        {t('access_denied')}
+                    </Typography>
+                    <Typography variant="body" className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto text-sm">
+                        {t('module_access_restricted')}
+                    </Typography>
+                </div>
+            </div>
+        );
+    }
     const [filterOwner, setFilterOwner] = useState<string>('All');
     const [selectedCurrency, setSelectedCurrency] = useState<string | null>(null);
     const [showHidden, setShowHidden] = useState(false);
@@ -818,13 +836,13 @@ export const Accounts: React.FC = () => {
                                             </div>
                                             <div className="-mr-1 self-start">
                                                 <AccountsMenu
-                                                    onEdit={() => openEditModal(acc)}
-                                                    onAdjustBalance={() => openAdjustModal(acc)}
-                                                    onSetDefault={() => setDefaultAccount(acc.id)}
+                                                    onEdit={can('Accounts', 'edit') ? () => openEditModal(acc) : undefined}
+                                                    onAdjustBalance={can('Accounts', 'edit') ? () => openAdjustModal(acc) : undefined}
+                                                    onSetDefault={can('Accounts', 'edit') ? () => setDefaultAccount(acc.id) : undefined}
                                                     isDefault={acc.status === AccountStatus.DEFAULT}
-                                                    onDelete={() => { setDeleteTarget(acc.id); setDeleteConfirmOpen(true); }}
+                                                    onDelete={can('Accounts', 'delete') ? () => { setDeleteTarget(acc.id); setDeleteConfirmOpen(true); } : undefined}
                                                     isHidden={acc.isHidden}
-                                                    onToggleHide={() => toggleHideAccount(acc.id)}
+                                                    onToggleHide={can('Accounts', 'edit') ? () => toggleHideAccount(acc.id) : undefined}
                                                 />
                                             </div>
                                         </div>

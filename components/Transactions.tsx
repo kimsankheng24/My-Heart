@@ -17,7 +17,7 @@ import {
     FileSpreadsheet, FileDown,
     TrendingUp,
     TrendingDown, ArrowDown, ArrowUp, ArrowUpDown,
-    AlertCircle, Download
+    AlertCircle, Download, ShieldAlert
 } from 'lucide-react';
 import { CustomDatePicker } from './CustomDatePicker';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -748,6 +748,24 @@ export const Transactions: React.FC = () => {
     const [sortField, setSortField] = useState<SortField>('date');
     const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
+    if (!can('Transactions', 'view')) {
+        return (
+            <div className={cn(CLASSES.container, "!px-2 md:!px-4 lg:!px-6 !space-y-4 pb-24")}>
+                <div className={cn(CLASSES.card, "p-8 md:p-12 text-center max-w-lg mx-auto my-12 space-y-4 border-dashed border-2")}>
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-800">
+                        <ShieldAlert size={32} />
+                    </div>
+                    <Typography variant="h2" className="text-lg font-bold text-gray-900 dark:text-white">
+                        {t('access_denied')}
+                    </Typography>
+                    <Typography variant="body" className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto text-sm">
+                        {t('module_access_restricted')}
+                    </Typography>
+                </div>
+            </div>
+        );
+    }
+
     const handleSort = (field: SortField) => {
         if (sortField === field) {
             setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
@@ -1255,14 +1273,16 @@ export const Transactions: React.FC = () => {
                                 <span className="hidden sm:inline">{t('export')}</span>
                             </button>
                             
-                            <button 
-                                onClick={() => setBulkDeleteConfirmOpen(true)}
-                                className={cn(CLASSES.buttonDanger, "h-10 px-3 sm:px-4 shadow-sm flex items-center gap-2 text-xs font-bold rounded-xl")}
-                                title={t('delete_selected')}
-                            >
-                                <Trash2 size={16} /> 
-                                <span className="hidden sm:inline">{t('delete')}</span>
-                            </button>
+                            {can('Transactions', 'delete') && (
+                                <button 
+                                    onClick={() => setBulkDeleteConfirmOpen(true)}
+                                    className={cn(CLASSES.buttonDanger, "h-10 px-3 sm:px-4 shadow-sm flex items-center gap-2 text-xs font-bold rounded-xl")}
+                                    title={t('delete_selected')}
+                                >
+                                    <Trash2 size={16} /> 
+                                    <span className="hidden sm:inline">{t('delete')}</span>
+                                </button>
+                            )}
                         </div>
                     </div>
                 ) : (
@@ -1529,8 +1549,8 @@ export const Transactions: React.FC = () => {
                                             <div className="flex justify-center">
                                                 <TransactionsMenu 
                                                     onView={() => setViewingTx(tx)} 
-                                                    onEdit={() => openEdit(tx)} 
-                                                    onDelete={() => { setTxToDelete(tx.id); setDeleteConfirmOpen(true); }} 
+                                                    onEdit={can('Transactions', 'edit') ? () => openEdit(tx) : undefined} 
+                                                    onDelete={can('Transactions', 'delete') ? () => { setTxToDelete(tx.id); setDeleteConfirmOpen(true); } : undefined} 
                                                 />
                                             </div>
                                         </td>

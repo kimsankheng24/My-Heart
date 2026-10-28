@@ -31,7 +31,7 @@ interface LayoutProps {
 }
 
 export const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { currentUser, logout, t, settings, updateSettings } = useApp();
+  const { currentUser, logout, t, settings, updateSettings, can } = useApp();
   const [isSidebarPinned, setIsSidebarPinned] = useState(false);
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -105,22 +105,22 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const menuItems = [
     { labelKey: 'dashboard', icon: LayoutDashboard, path: '/' },
-    { labelKey: 'transactions', icon: ArrowRightLeft, path: '/transactions' },
-    { labelKey: 'accounts', icon: Wallet, path: '/accounts' },
-    { labelKey: 'goals', icon: Target, path: '/goals' },
-    { labelKey: 'budget', icon: PiggyBank, path: '/budget' },
-    { labelKey: 'analytics', icon: BarChart3, path: '/analytics' },
-    { labelKey: 'assets', icon: HandCoins, path: '/assets' },
-    { labelKey: 'reports', icon: FileText, path: '/reports' },
-    { labelKey: 'settings', icon: Settings, path: '/settings' },
-  ];
+    { labelKey: 'transactions', icon: ArrowRightLeft, path: '/transactions', module: 'Transactions' },
+    { labelKey: 'accounts', icon: Wallet, path: '/accounts', module: 'Accounts' },
+    { labelKey: 'goals', icon: Target, path: '/goals', module: 'Goals' },
+    { labelKey: 'budget', icon: PiggyBank, path: '/budget', module: 'Budgets' },
+    { labelKey: 'analytics', icon: BarChart3, path: '/analytics', module: 'Analytics' },
+    { labelKey: 'assets', icon: HandCoins, path: '/assets', module: 'Assets' },
+    { labelKey: 'reports', icon: FileText, path: '/reports', module: 'Reports' },
+    { labelKey: 'settings', icon: Settings, path: '/settings', module: 'Settings' },
+  ].filter(item => !item.module || can(item.module as any, 'view'));
 
   const mobileNavItems = [
       { labelKey: 'home', icon: Home, path: '/' },
-      { labelKey: 'transactions', icon: ArrowRightLeft, path: '/transactions' },
-      { labelKey: 'quick_action', icon: CirclePlus, isFab: true },
-      { labelKey: 'budget', icon: PiggyBank, path: '/budget' },
-      { labelKey: 'account', icon: Wallet, path: '/accounts' },
+      ...(can('Transactions', 'view') ? [{ labelKey: 'transactions', icon: ArrowRightLeft, path: '/transactions' }] : []),
+      ...((can('Transactions', 'add') || can('Accounts', 'edit')) ? [{ labelKey: 'quick_action', icon: CirclePlus, isFab: true }] : []),
+      ...(can('Budgets', 'view') ? [{ labelKey: 'budget', icon: PiggyBank, path: '/budget' }] : []),
+      ...(can('Accounts', 'view') ? [{ labelKey: 'account', icon: Wallet, path: '/accounts' }] : []),
   ];
 
   return (
@@ -384,32 +384,38 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* FAB Quick Menu - Mobile */}
       {isFabOpen && (
           <div ref={fabMenuRef} className="lg:hidden fixed bottom-24 md:bottom-28 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 z-[60]">
-              <button 
-                  onClick={() => handleFabAction('Transfer')}
-                  className="flex items-center justify-center gap-3 w-40 sm:w-48 md:w-56 h-12 md:h-14 rounded-full bg-blue-600 text-white shadow-xl shadow-blue-600/30 border-2 border-white dark:border-dark-bg active:scale-95 transition-all group opacity-0 animate-slide-up"
-                  style={{ animationDelay: '150ms' }}
-              >
-                  <ArrowRightLeft size={20} className="md:w-6 md:h-6" />
-                  <span className="text-sm md:text-base font-bold tracking-wide">{t('transfer')}</span>
-              </button>
+              {can('Accounts', 'edit') && (
+                  <button 
+                      onClick={() => handleFabAction('Transfer')}
+                      className="flex items-center justify-center gap-3 w-40 sm:w-48 md:w-56 h-12 md:h-14 rounded-full bg-blue-600 text-white shadow-xl shadow-blue-600/30 border-2 border-white dark:border-dark-bg active:scale-95 transition-all group opacity-0 animate-slide-up"
+                      style={{ animationDelay: '150ms' }}
+                  >
+                      <ArrowRightLeft size={20} className="md:w-6 md:h-6" />
+                      <span className="text-sm md:text-base font-bold tracking-wide">{t('transfer')}</span>
+                  </button>
+              )}
               
-              <button 
-                  onClick={() => handleFabAction('Expense')}
-                  className="flex items-center justify-center gap-3 w-40 sm:w-48 md:w-56 h-12 md:h-14 rounded-full bg-red-600 text-white shadow-xl shadow-red-600/30 border-2 border-white dark:border-dark-bg active:scale-95 transition-all group opacity-0 animate-slide-up"
-                  style={{ animationDelay: '75ms' }}
-              >
-                  <CreditCard size={20} className="md:w-6 md:h-6" />
-                  <span className="text-sm md:text-base font-bold tracking-wide">{t('expense')}</span>
-              </button>
+              {can('Transactions', 'add') && (
+                  <>
+                      <button 
+                          onClick={() => handleFabAction('Expense')}
+                          className="flex items-center justify-center gap-3 w-40 sm:w-48 md:w-56 h-12 md:h-14 rounded-full bg-red-600 text-white shadow-xl shadow-red-600/30 border-2 border-white dark:border-dark-bg active:scale-95 transition-all group opacity-0 animate-slide-up"
+                          style={{ animationDelay: '75ms' }}
+                      >
+                          <CreditCard size={20} className="md:w-6 md:h-6" />
+                          <span className="text-sm md:text-base font-bold tracking-wide">{t('expense')}</span>
+                      </button>
 
-              <button 
-                  onClick={() => handleFabAction('Income')}
-                  className="flex items-center justify-center gap-3 w-40 sm:w-48 md:w-56 h-12 md:h-14 rounded-full bg-emerald-600 text-white shadow-xl shadow-emerald-600/30 border-2 border-white dark:border-dark-bg active:scale-95 transition-all group opacity-0 animate-slide-up"
-                  style={{ animationDelay: '0ms' }}
-              >
-                  <Wallet size={20} className="md:w-6 md:h-6" />
-                  <span className="text-sm md:text-base font-bold tracking-wide">{t('income')}</span>
-              </button>
+                      <button 
+                          onClick={() => handleFabAction('Income')}
+                          className="flex items-center justify-center gap-3 w-40 sm:w-48 md:w-56 h-12 md:h-14 rounded-full bg-emerald-600 text-white shadow-xl shadow-emerald-600/30 border-2 border-white dark:border-dark-bg active:scale-95 transition-all group opacity-0 animate-slide-up"
+                          style={{ animationDelay: '0ms' }}
+                      >
+                          <Wallet size={20} className="md:w-6 md:h-6" />
+                          <span className="text-sm md:text-base font-bold tracking-wide">{t('income')}</span>
+                      </button>
+                  </>
+              )}
           </div>
       )}
 

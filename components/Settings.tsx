@@ -1136,7 +1136,10 @@ const ChartOfAccountDetailModal: React.FC<{
 };
 
 const ChartOfAccountsTab: React.FC = () => {
-    const { chartOfAccounts, addChartOfAccount, addChartOfAccounts, updateChartOfAccount, deleteChartOfAccount, deleteChartOfAccounts, t } = useApp();
+    const { chartOfAccounts, addChartOfAccount, addChartOfAccounts, updateChartOfAccount, deleteChartOfAccount, deleteChartOfAccounts, can, t } = useApp();
+    const canAdd = can('Settings', 'add');
+    const canEdit = can('Settings', 'edit');
+    const canDelete = can('Settings', 'delete');
     const [searchTerm, setSearchTerm] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingAccount, setEditingAccount] = useState<ChartOfAccount | undefined>(undefined);
@@ -1424,7 +1427,7 @@ const ChartOfAccountsTab: React.FC = () => {
     return (
         <div className="space-y-6 pb-24">
             <div className="flex flex-row justify-between items-center gap-2 sm:gap-4">
-                {selectedAccountIds.length > 0 ? (
+                {(canDelete && selectedAccountIds.length > 0) ? (
                     <div className="flex-1 flex items-center gap-4 bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-xl border border-emerald-100 dark:border-emerald-800">
                         <span className="text-sm font-medium text-emerald-700 dark:text-emerald-400 pl-2">
                             {selectedAccountIds.length} {t('selected')}
@@ -1480,19 +1483,23 @@ const ChartOfAccountsTab: React.FC = () => {
                                     <button onClick={handleExport} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-2 text-gray-700 dark:text-gray-200">
                                         <Download size={16} className="text-gray-400" /> {t('export_excel')}
                                     </button>
-                                    <button onClick={() => { setIsImportModalOpen(true); setIsActionMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-2 text-gray-700 dark:text-gray-200">
-                                        <Upload size={16} className="text-gray-400" /> {t('import_excel')}
-                                    </button>
+                                    {canAdd && (
+                                        <button onClick={() => { setIsImportModalOpen(true); setIsActionMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-700/50 flex items-center gap-2 text-gray-700 dark:text-gray-200">
+                                            <Upload size={16} className="text-gray-400" /> {t('import_excel')}
+                                        </button>
+                                    )}
                                 </div>
                             </>
                         )}
                     </div>
-                    <button
-                        onClick={() => { setEditingAccount(undefined); setIsModalOpen(true); }}
-                        className={cn(CLASSES.buttonPrimary, "h-10 px-4 rounded-xl shadow-sm text-sm font-bold")}
-                    >
-                        <PlusCircle size={16} /> <span className="hidden sm:inline">{t('new_account')}</span><span className="sm:hidden">{t('new')}</span>
-                    </button>
+                    {canAdd && (
+                        <button
+                            onClick={() => { setEditingAccount(undefined); setIsModalOpen(true); }}
+                            className={cn(CLASSES.buttonPrimary, "h-10 px-4 rounded-xl shadow-sm text-sm font-bold")}
+                        >
+                            <PlusCircle size={16} /> <span className="hidden sm:inline">{t('new_account')}</span><span className="sm:hidden">{t('new')}</span>
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -1555,8 +1562,8 @@ const ChartOfAccountsTab: React.FC = () => {
                                     <td className={premiumTd}><span className="truncate block max-w-[484px] text-gray-600 dark:text-gray-400">{c.description}</span></td>
                                     <td className={cn(premiumTd, "text-center")} onClick={e => e.stopPropagation()}>
                                         <SettingsMenu
-                                            onEdit={() => { setEditingAccount(c); setIsModalOpen(true); }}
-                                            onDelete={() => { setDeleteTarget(c.id); setDeleteConfirmOpen(true); }}
+                                            onEdit={canEdit ? () => { setEditingAccount(c); setIsModalOpen(true); } : undefined}
+                                            onDelete={canDelete ? () => { setDeleteTarget(c.id); setDeleteConfirmOpen(true); } : undefined}
                                         />
                                     </td>
                                 </tr>
@@ -2111,7 +2118,8 @@ const UserRoleTab: React.FC = () => {
 };
 
 const SetupSystemTab: React.FC = () => {
-    const { settings, updateSettings, t } = useApp();
+    const { settings, updateSettings, can, t } = useApp();
+    const canEdit = can('Settings', 'edit');
     const [formData, setFormData] = useState({ ...settings });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -2147,7 +2155,8 @@ const SetupSystemTab: React.FC = () => {
                             <Typography variant="label">{t('profile_name')}</Typography>
                             <div className="relative">
                                 <input
-                                    className={cn(CLASSES.input, "pl-10 h-12 rounded-xl")}
+                                    disabled={!canEdit}
+                                    className={cn(CLASSES.input, "pl-10 h-12 rounded-xl", !canEdit && "bg-gray-100 dark:bg-gray-800/60 cursor-not-allowed")}
                                     value={formData.profileName}
                                     onChange={e => setFormData({ ...formData, profileName: e.target.value })}
                                 />
@@ -2165,6 +2174,7 @@ const SetupSystemTab: React.FC = () => {
                                         ) : (
                                             <UserIcon size={32} className="text-gray-400" />
                                         )}
+                                        {canEdit && (
                                         <button
                                             type="button"
                                             onClick={() => fileInputRef.current?.click()}
@@ -2172,6 +2182,7 @@ const SetupSystemTab: React.FC = () => {
                                         >
                                             <Camera size={20} />
                                         </button>
+                                    )}
                                     </div>
                                     <input
                                         type="file"
@@ -2192,7 +2203,8 @@ const SetupSystemTab: React.FC = () => {
                             <Typography variant="label">{t('language')}</Typography>
                             <div className="relative group">
                                 <select
-                                    className={cn(CLASSES.select, "pl-10 h-12 rounded-xl")}
+                                    disabled={!canEdit}
+                                    className={cn(CLASSES.select, "pl-10 h-12 rounded-xl", !canEdit && "bg-gray-100 dark:bg-gray-800/60 cursor-not-allowed")}
                                     value={formData.language}
                                     onChange={e => setFormData({ ...formData, language: e.target.value as any })}
                                 >
@@ -2210,7 +2222,8 @@ const SetupSystemTab: React.FC = () => {
                             <Typography variant="label">{t('date_format')}</Typography>
                             <div className="relative group">
                                 <select
-                                    className={cn(CLASSES.select, "pl-10 h-12 rounded-xl")}
+                                    disabled={!canEdit}
+                                    className={cn(CLASSES.select, "pl-10 h-12 rounded-xl", !canEdit && "bg-gray-100 dark:bg-gray-800/60 cursor-not-allowed")}
                                     value={formData.dateFormat}
                                     onChange={e => setFormData({ ...formData, dateFormat: e.target.value })}
                                 >
@@ -2227,7 +2240,8 @@ const SetupSystemTab: React.FC = () => {
                             <Typography variant="label">{t('timezone')}</Typography>
                             <div className="relative group">
                                 <select
-                                    className={cn(CLASSES.select, "pl-10 h-12 rounded-xl")}
+                                    disabled={!canEdit}
+                                    className={cn(CLASSES.select, "pl-10 h-12 rounded-xl", !canEdit && "bg-gray-100 dark:bg-gray-800/60 cursor-not-allowed")}
                                     value={formData.timezone}
                                     onChange={e => setFormData({ ...formData, timezone: e.target.value })}
                                 >
@@ -2250,6 +2264,7 @@ const SetupSystemTab: React.FC = () => {
                                     <button
                                         key={theme.id}
                                         onClick={() => {
+                                            if (!canEdit) return;
                                             setFormData({ ...formData, theme: theme.id as any });
                                             updateSettings({ theme: theme.id as any });
                                         }}
@@ -2267,15 +2282,17 @@ const SetupSystemTab: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="pt-6">
-                            <button
-                                onClick={handleSave}
-                                disabled={isSubmitting}
-                                className={cn(CLASSES.buttonPrimary, "w-full h-12 rounded-xl text-base font-bold shadow-lg shadow-emerald-500/20")}
-                            >
-                                {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : t('save_changes')}
-                            </button>
-                        </div>
+                        {canEdit && (
+                            <div className="pt-6">
+                                <button
+                                    onClick={handleSave}
+                                    disabled={isSubmitting}
+                                    className={cn(CLASSES.buttonPrimary, "w-full h-12 rounded-xl text-base font-bold shadow-lg shadow-emerald-500/20")}
+                                >
+                                    {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : t('save_changes')}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -2284,7 +2301,8 @@ const SetupSystemTab: React.FC = () => {
 };
 
 const CurrencyTab: React.FC = () => {
-    const { settings, updateCurrencyRate, toggleCurrencyActive, updateSettings, syncRates, t } = useApp();
+    const { settings, updateCurrencyRate, toggleCurrencyActive, updateSettings, syncRates, can, t } = useApp();
+    const canEdit = can('Settings', 'edit');
     const [editingRate, setEditingRate] = useState<string | null>(null);
     const [newRate, setNewRate] = useState('');
     const [isSyncing, setIsSyncing] = useState(false);
@@ -2368,7 +2386,7 @@ const CurrencyTab: React.FC = () => {
                         {[Currency.USD, Currency.KHR].map(c => (
                             <button
                                 key={c}
-                                onClick={() => updateSettings({ defaultCurrency: c })}
+                                onClick={() => canEdit && updateSettings({ defaultCurrency: c })}
                                 className={cn(
                                     "flex-1 py-4 rounded-xl border-2 font-bold text-lg transition-all",
                                     settings.defaultCurrency === c
@@ -2390,9 +2408,10 @@ const CurrencyTab: React.FC = () => {
                         <div className="flex items-center justify-between mb-2">
                             <Typography variant="h3">{t('auto_sync_rates')}</Typography>
                             <div
-                                onClick={() => updateSettings({ autoSyncRates: !settings.autoSyncRates })}
+                                onClick={() => canEdit && updateSettings({ autoSyncRates: !settings.autoSyncRates })}
                                 className={cn(
-                                    "w-12 h-6 rounded-full p-1 transition-colors cursor-pointer flex items-center",
+                                    "w-12 h-6 rounded-full p-1 transition-colors flex items-center",
+                                    canEdit ? "cursor-pointer" : "cursor-not-allowed opacity-60",
                                     settings.autoSyncRates ? "bg-emerald-500 justify-end" : "bg-gray-300 dark:bg-gray-700 justify-start"
                                 )}
                             >
@@ -2414,7 +2433,7 @@ const CurrencyTab: React.FC = () => {
                         </div>
                         <button
                             onClick={handleSync}
-                            disabled={isSyncing}
+                            disabled={isSyncing || !canEdit}
                             className={cn(
                                 "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all",
                                 isSyncing
@@ -2450,11 +2469,11 @@ const CurrencyTab: React.FC = () => {
                                     <tr key={c} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors">
                                         <td className="px-6 py-4">
                                             <div
-                                                onClick={() => !isBase && toggleCurrencyActive(c, !isActive)}
+                                                onClick={() => canEdit && !isBase && toggleCurrencyActive(c, !isActive)}
                                                 className={cn(
-                                                    "w-12 h-6 rounded-full p-1 transition-colors cursor-pointer flex items-center",
-                                                    isActive ? "bg-emerald-500 justify-end" : "bg-gray-300 dark:bg-gray-700 justify-start",
-                                                    isBase && "opacity-50 cursor-not-allowed"
+                                                    "w-12 h-6 rounded-full p-1 transition-colors flex items-center",
+                                                    canEdit && !isBase ? "cursor-pointer" : "cursor-not-allowed opacity-50",
+                                                    isActive ? "bg-emerald-500 justify-end" : "bg-gray-300 dark:bg-gray-700 justify-start"
                                                 )}
                                             >
                                                 <div className="w-4 h-4 bg-white rounded-full shadow-sm" />
@@ -2479,12 +2498,14 @@ const CurrencyTab: React.FC = () => {
                                             ) : (
                                                 <div className="flex items-center justify-end gap-3 group">
                                                     <span className="font-mono tabular-nums font-medium">{currentRate.toLocaleString()}</span>
-                                                    <button
-                                                        onClick={() => { setEditingRate(c); setNewRate(currentRate.toString()); }}
-                                                        className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-gray-100 rounded-lg transition-all"
-                                                    >
-                                                        <Edit2 size={14} />
-                                                    </button>
+                                                    {canEdit && (
+                                                        <button
+                                                            onClick={() => { setEditingRate(c); setNewRate(currentRate.toString()); }}
+                                                            className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-gray-100 rounded-lg transition-all"
+                                                        >
+                                                            <Edit2 size={14} />
+                                                        </button>
+                                                    )}
                                                 </div>
                                             )}
                                         </td>
@@ -2505,8 +2526,28 @@ const CurrencyTab: React.FC = () => {
 };
 
 export const Settings: React.FC = () => {
-    const { t } = useApp();
+    const { currentUser, can, t } = useApp();
     const [activeTab, setActiveTab] = useState<'CoA' | 'UserRole' | 'System' | 'Currency'>('CoA');
+
+    const isAdmin = currentUser?.role === 'Administrator' || (can && can('Settings', 'edit'));
+
+    if (!can('Settings', 'view')) {
+        return (
+            <div className={cn(CLASSES.container, "!px-2 md:!px-4 lg:!px-6 !space-y-4 pb-24")}>
+                <div className={cn(CLASSES.card, "p-8 md:p-12 text-center max-w-lg mx-auto my-12 space-y-4 border-dashed border-2")}>
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-800">
+                        <ShieldAlert size={32} />
+                    </div>
+                    <Typography variant="h2" className="text-lg font-bold text-gray-900 dark:text-white">
+                        {t('access_denied')}
+                    </Typography>
+                    <Typography variant="body" className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto text-sm">
+                        {t('module_access_restricted')}
+                    </Typography>
+                </div>
+            </div>
+        );
+    }
 
     const renderContent = () => {
         switch (activeTab) {
@@ -2526,7 +2567,7 @@ export const Settings: React.FC = () => {
             <div className="grid grid-cols-2 lg:flex w-full md:w-auto p-1.5 gap-1 bg-white dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl shadow-sm mb-6 sticky top-0 z-20">
                 {[
                     { id: 'CoA', label: 'chart_of_accounts', icon: BookOpen },
-                    { id: 'UserRole', label: 'user_role', icon: UserIcon },
+                    ...(isAdmin ? [{ id: 'UserRole', label: 'user_role', icon: UserIcon }] : []),
                     { id: 'System', label: 'setup_system', icon: Settings2 },
                     { id: 'Currency', label: 'currency_mgmt', icon: Coins },
                 ].map(tab => {

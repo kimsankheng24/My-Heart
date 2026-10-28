@@ -9,7 +9,7 @@ import {
 } from 'recharts';
 import { Typography } from './Typography';
 import { CustomDatePicker } from './CustomDatePicker';
-import { Download, TrendingUp, TrendingDown, Calendar, ChevronDown, Info } from 'lucide-react';
+import { Download, TrendingUp, TrendingDown, Calendar, ChevronDown, Info, ShieldAlert } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 // Tooltip Component
@@ -109,8 +109,26 @@ const KPICard: React.FC<{
 };
 
 export const Analytics: React.FC = () => {
-    const { transactions, budgets, settings, t, chartOfAccounts, accounts } = useApp();
+    const { transactions, budgets, settings, t, chartOfAccounts, accounts, can } = useApp();
     const [activeTab, setActiveTab] = useState<'Statistics' | 'Budget' | 'Breakdown'>('Statistics');
+
+    if (!can('Analytics', 'view')) {
+        return (
+            <div className={cn(CLASSES.container, "!px-2 md:!px-4 lg:!px-6 !space-y-4 pb-24")}>
+                <div className={cn(CLASSES.card, "p-8 md:p-12 text-center max-w-lg mx-auto my-12 space-y-4 border-dashed border-2")}>
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-800">
+                        <ShieldAlert size={32} />
+                    </div>
+                    <Typography variant="h2" className="text-lg font-bold text-gray-900 dark:text-white">
+                        {t('access_denied')}
+                    </Typography>
+                    <Typography variant="body" className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto text-sm">
+                        {t('module_access_restricted')}
+                    </Typography>
+                </div>
+            </div>
+        );
+    }
     const [breakdownType, setBreakdownType] = useState<TransactionType>(TransactionType.EXPENSE);
     
     // Date State with Phnom Penh Time defaults (This Year)

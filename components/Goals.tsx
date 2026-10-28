@@ -13,7 +13,7 @@ import {
     PlusCircle, X, Target, 
     AlertTriangle, Loader2, 
     ChevronDown, AlertCircle, Info, PiggyBank,
-    CheckCircle2, History
+    CheckCircle2, History, ShieldAlert
 } from 'lucide-react';
 
 const TooltipButton: React.FC<{ tooltip: string; variant?: 'default' | 'primary' }> = ({ tooltip, variant = 'default' }) => {
@@ -84,7 +84,7 @@ const KPICard: React.FC<{
 };
 
 export const Goals: React.FC = () => {
-    const { goals, addGoal, updateGoal, deleteGoal, settings, t, accounts, addTransaction } = useApp();
+    const { goals, addGoal, updateGoal, deleteGoal, settings, t, accounts, addTransaction, can } = useApp();
     
     const [isAddOpen, setAddOpen] = useState(false);
     const [isContributeOpen, setContributeOpen] = useState(false);
@@ -367,6 +367,24 @@ export const Goals: React.FC = () => {
         return days;
     };
 
+    if (!can('Goals', 'view')) {
+        return (
+            <div className={cn(CLASSES.container, "!px-2 md:!px-4 lg:!px-6 !space-y-4 pb-24")}>
+                <div className={cn(CLASSES.card, "p-8 md:p-12 text-center max-w-lg mx-auto my-12 space-y-4 border-dashed border-2")}>
+                    <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-800">
+                        <ShieldAlert size={32} />
+                    </div>
+                    <Typography variant="h2" className="text-lg font-bold text-gray-900 dark:text-white">
+                        {t('access_denied')}
+                    </Typography>
+                    <Typography variant="body" className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto text-sm">
+                        {t('module_access_restricted')}
+                    </Typography>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className={cn(CLASSES.container, "!px-2 md:!px-4 lg:!px-6 !space-y-4 pb-24")}>
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -375,14 +393,16 @@ export const Goals: React.FC = () => {
                     <Typography variant="caption">{t('milestone_subtitle')}</Typography>
                 </div>
                 
-                <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-                    <button 
-                        onClick={openAdd}
-                        className={cn(CLASSES.buttonPrimary, "h-10 px-4 shadow-sm text-sm font-bold w-full md:w-auto rounded-xl flex items-center gap-2")}
-                    >
-                        <PlusCircle size={16} /> <span>{t('new_goal')}</span>
-                    </button>
-                </div>
+                {can('Goals', 'add') && (
+                    <div className="flex items-center gap-3 w-full md:w-auto justify-end">
+                        <button 
+                            onClick={openAdd}
+                            className={cn(CLASSES.buttonPrimary, "h-10 px-4 shadow-sm text-sm font-bold w-full md:w-auto rounded-xl flex items-center gap-2")}
+                        >
+                            <PlusCircle size={16} /> <span>{t('new_goal')}</span>
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Summary Cards */}
@@ -463,10 +483,10 @@ export const Goals: React.FC = () => {
                                     <div onClick={e => e.stopPropagation()}>
                                         <GoalsMenu 
                                             onView={() => setViewingGoal(goal)}
-                                            onEdit={() => openEdit(goal)}
-                                            onDelete={() => { setGoalToDelete(goal.id); setDeleteConfirmOpen(true); }}
-                                            isActive={goal.status !== GoalStatus.COMPLETED && goal.status !== GoalStatus.CANCELLED}
-                                            onContribute={() => openContribute(goal)}
+                                            onEdit={can('Goals', 'edit') ? () => openEdit(goal) : undefined}
+                                            onDelete={can('Goals', 'delete') ? () => { setGoalToDelete(goal.id); setDeleteConfirmOpen(true); } : undefined}
+                                            isActive={can('Goals', 'edit') && goal.status !== GoalStatus.COMPLETED && goal.status !== GoalStatus.CANCELLED}
+                                            onContribute={can('Goals', 'edit') ? () => openContribute(goal) : undefined}
                                         />
                                     </div>
                                 </div>
