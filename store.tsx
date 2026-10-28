@@ -527,6 +527,32 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
         role_desc_placeholder: "e.g. Basic ledger entry tasks",
         users_tab: "Users",
         roles_tab: "Roles",
+        user_management: 'User Management',
+        role_management: 'Role Management',
+        assigned_members: 'Assigned Members',
+        members_count: '{{count}} Members',
+        member_count_single: '1 Member',
+        no_members_assigned: '0 Members',
+        full_access: 'Full Access',
+        custom_access: 'Custom Access',
+        no_access: 'No Access',
+        read_only: 'Read Only',
+        grant_all: 'Grant All',
+        revoke_all: 'Revoke All',
+        admin_role_protected: 'System Administrator role cannot be deleted.',
+        cannot_delete_role_assigned: 'Cannot delete role because {{count}} member(s) are assigned to it. Please reassign them first.',
+        cannot_delete_own_account: 'You cannot delete your own account.',
+        cannot_delete_last_admin: 'Cannot delete the only administrator account.',
+        admin_access_required: 'Administrator Access Required',
+        admin_access_required_desc: 'Only users with the Administrator role can manage users and permissions.',
+        system_role: 'System Role',
+        preset_quick_setup: 'Quick Presets',
+        role_name_required: 'Role name is required.',
+        role_name_duplicate: 'A role with this name already exists.',
+        confirm_delete_role: 'Are you sure you want to permanently delete role "{{name}}"? This action cannot be undone.',
+        confirm_delete_user: 'Are you sure you want to permanently delete user "{{name}}"? This action cannot be undone.',
+        all_modules: 'All Modules',
+        modules_count: '{{count}} of {{total}} Modules',
         module: "Module",
         all: "All",
         user_id_error_required: "User identifier is required.",
@@ -1106,6 +1132,32 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
         role_desc_placeholder: "ឧ. កិច្ចការបញ្ចូលបញ្ជីមូលដ្ឋាន",
         users_tab: "អ្នកប្រើប្រាស់",
         roles_tab: "តួនាទី",
+        user_management: 'ការគ្រប់គ្រងអ្នកប្រើប្រាស់',
+        role_management: 'ការគ្រប់គ្រងតួនាទី',
+        assigned_members: 'សមាជិកដែលបានចាត់តាំង',
+        members_count: '{{count}} នាក់',
+        member_count_single: '1 នាក់',
+        no_members_assigned: '0 នាក់',
+        full_access: 'សិទ្ធិពេញលេញ',
+        custom_access: 'សិទ្ធិកំណត់ផ្ទាល់ខ្លួន',
+        no_access: 'គ្មានសិទ្ធិ',
+        read_only: 'មើលតែប៉ុណ្ណោះ',
+        grant_all: 'ផ្តល់សិទ្ធិទាំងអស់',
+        revoke_all: 'ដកសិទ្ធិទាំងអស់',
+        admin_role_protected: 'តួនាទីអ្នកគ្រប់គ្រងប្រព័ន្ធមិនអាចលុបបានទេ។',
+        cannot_delete_role_assigned: 'មិនអាចលុបតួនាទីនេះបានទេ ព្រោះមានសមាជិក {{count}} នាក់កំពុងប្រើប្រាស់។ សូមប្តូរតួនាទីពួកគេជាមុនសិន។',
+        cannot_delete_own_account: 'អ្នកមិនអាចលុបគណនីផ្ទាល់ខ្លួនរបស់អ្នកបានទេ។',
+        cannot_delete_last_admin: 'មិនអាចលុបគណនីអ្នកគ្រប់គ្រងចុងក្រោយបានទេ។',
+        admin_access_required: 'ទាមទារសិទ្ធិអ្នកគ្រប់គ្រង',
+        admin_access_required_desc: 'មានតែអ្នកប្រើប្រាស់ដែលមានតួនាទីជាអ្នកគ្រប់គ្រងប៉ុណ្ណោះដែលអាចគ្រប់គ្រងអ្នកប្រើប្រាស់ និងសិទ្ធិបាន។',
+        system_role: 'តួនាទីប្រព័ន្ធ',
+        preset_quick_setup: 'ការកំណត់រហ័ស',
+        role_name_required: 'សូមបញ្ចូលឈ្មោះតួនាទី។',
+        role_name_duplicate: 'មានតួនាទីដែលមានឈ្មោះនេះរួចហើយ។',
+        confirm_delete_role: 'តើអ្នកពិតជាចង់លុបតួនាទី "{{name}}" ជាអចិន្ត្រៃយ៍មែនទេ? សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។',
+        confirm_delete_user: 'តើអ្នកពិតជាចង់លុបអ្នកប្រើប្រាស់ "{{name}}" ជាអចិន្ត្រៃយ៍មែនទេ? សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។',
+        all_modules: 'គ្រប់ម៉ូឌុល',
+        modules_count: '{{count}} ក្នុងចំណោម {{total}} ម៉ូឌុល',
         module: "ម៉ូឌុល",
         all: "ទាំងអស់",
         user_id_error_required: "អត្តសញ្ញាណអ្នកប្រើប្រាស់ត្រូវបានទាមទារ",
@@ -1220,7 +1272,7 @@ interface AppContextType {
     updateUser: (u: any) => void;
     deleteUser: (id: string) => void;
     addRole: (r: any) => void;
-    updateRole: (r: any) => void;
+    updateRole: (r: any, oldName?: string) => void;
     deleteRole: (id: string) => void;
     updateCurrencyRate: (c: string, r: number) => void;
     toggleCurrencyActive: (c: string, a: boolean) => void;
@@ -1428,8 +1480,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const can = (module: AppModuleName, action: PermissionAction) => {
         if (!currentUser) return false;
+        if (currentUser.role === 'Administrator') return true;
         const role = roles.find(r => r.name === currentUser.role);
-        return role ? role.permissions[module]?.[action] : false;
+        return role ? !!role.permissions[module]?.[action] : false;
     };
 
     const updateSettings = (s: Partial<AppSettings>) => setSettings(prev => ({ ...prev, ...s }));
@@ -1827,6 +1880,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         syncWithCloudflare('users', 'update', u);
     };
     const deleteUser = (id: string) => {
+        if (currentUser && currentUser.id === id) {
+            console.warn('Cannot delete currently logged in user');
+            return;
+        }
         setUsers(prev => prev.filter(item => item.id !== id));
         syncWithCloudflare('users', 'delete', id);
     };
@@ -1837,11 +1894,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setRoles(prev => [...prev, newRole]);
         syncWithCloudflare('roles', 'create', newRole);
     };
-    const updateRole = (r: any) => {
+    const updateRole = (r: any, oldName?: string) => {
         setRoles(prev => prev.map(item => item.id === r.id ? r : item));
+        if (oldName && oldName !== r.name) {
+            setUsers(prev => prev.map(u => u.role === oldName ? { ...u, role: r.name } : u));
+        }
         syncWithCloudflare('roles', 'update', r);
     };
     const deleteRole = (id: string) => {
+        const role = roles.find(r => r.id === id);
+        if (role && role.name === 'Administrator') {
+            console.warn('Cannot delete Administrator role');
+            return;
+        }
         setRoles(prev => prev.filter(item => item.id !== id));
         syncWithCloudflare('roles', 'delete', id);
     };

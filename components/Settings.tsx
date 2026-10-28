@@ -14,7 +14,9 @@ import {
     CornerDownRight, Edit2, ChevronDown, Monitor,
     FileSpreadsheet, Trash2, CheckCircle2,
     ChevronsLeft, ChevronLeft, ChevronsRight,
-    BookOpen
+    BookOpen, ArrowRightLeft, Landmark, PieChart,
+    Target, Building2, FileText, BarChart3, Users,
+    Key, Unlock, ShieldAlert
 } from 'lucide-react';
 import { cn, formatDate, formatDateTime, CLASSES } from '../utils';
 import { SettingsMenu } from './menus/SettingsMenu';
@@ -725,49 +727,61 @@ const UserModal: React.FC<{
     );
 };
 
+const MODULE_CONFIG: { id: AppModuleName; labelKey: string; icon: React.FC<{ size?: number; className?: string }> }[] = [
+    { id: 'Transactions', labelKey: 'transactions', icon: ArrowRightLeft },
+    { id: 'Accounts', labelKey: 'accounts', icon: Landmark },
+    { id: 'Budgets', labelKey: 'budgets', icon: PieChart },
+    { id: 'Goals', labelKey: 'goals', icon: Target },
+    { id: 'Assets', labelKey: 'assets', icon: Building2 },
+    { id: 'Reports', labelKey: 'reports', icon: FileText },
+    { id: 'Analytics', labelKey: 'analytics', icon: BarChart3 },
+    { id: 'Settings', labelKey: 'settings', icon: Settings2 },
+];
+
 const RolePermissionsModal: React.FC<{
     role?: Role;
     onClose: () => void;
-    onSave: (roleData: Omit<Role, 'id'> & { id?: string }) => void;
+    onSave: (roleData: Omit<Role, 'id'> & { id?: string }, oldName?: string) => void;
 }> = ({ role, onClose, onSave }) => {
-    const { t } = useApp();
-    const modules: AppModuleName[] = ['Transactions', 'Accounts', 'Budgets', 'Goals', 'Assets', 'Reports', 'Analytics', 'Settings'];
+    const { roles, t } = useApp();
     const actions: PermissionAction[] = ['view', 'add', 'edit', 'delete'];
 
     const initialPermissions = useMemo(() => {
         const perms: Record<string, ModulePermissions> = {};
-        modules.forEach(m => {
-            perms[m] = role?.permissions[m] || { view: false, add: false, edit: false, delete: false };
+        MODULE_CONFIG.forEach(m => {
+            perms[m.id] = role?.permissions[m.id] ? { ...role.permissions[m.id] } : { view: false, add: false, edit: false, delete: false };
         });
         return perms;
     }, [role]);
 
+    const isSystemAdmin = role?.name === 'Administrator';
     const [name, setName] = useState(role?.name || '');
     const [description, setDescription] = useState(role?.description || '');
     const [permissions, setPermissions] = useState<Record<string, ModulePermissions>>(initialPermissions);
-    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+    const [errors, setErrors] = useState<Record<string, string>>({});
     const [visualViewportHeight, setVisualViewportHeight] = useState(window.innerHeight);
 
     useEffect(() => {
         const handleResize = () => {
             if (window.visualViewport) {
                 setVisualViewportHeight(window.visualViewport.height);
-                setIsKeyboardOpen(window.visualViewport.height < window.innerHeight * 0.85);
             }
         };
         window.visualViewport?.addEventListener('resize', handleResize);
         return () => window.visualViewport?.removeEventListener('resize', handleResize);
     }, []);
 
-    const togglePermission = (module: string, action: PermissionAction) => {
+    const togglePermission = (module: AppModuleName, action: PermissionAction) => {
         setPermissions(prev => {
-            const modulePerms = { ...prev[module] };
+            const modulePerms = { ...(prev[module] || { view: false, add: false, edit: false, delete: false }) };
             const newValue = !modulePerms[action];
             modulePerms[action] = newValue;
 
+            // Smart dependency: enabling add/edit/delete automatically enables view
             if (newValue && action !== 'view') {
                 modulePerms.view = true;
             }
+            // Disabling view automatically removes add/edit/delete
             if (!newValue && action === 'view') {
                 modulePerms.add = false;
                 modulePerms.edit = false;
@@ -778,101 +792,278 @@ const RolePermissionsModal: React.FC<{
         });
     };
 
-    const toggleAll = (module: string, checked: boolean) => {
+    const toggleRowAll = (module: AppModuleName, checked: boolean) => {
         setPermissions(prev => ({
             ...prev,
             [module]: { view: checked, add: checked, edit: checked, delete: checked }
         }));
     };
 
+    const isGlobalAllChecked = useMemo(() => {
+        return MODULE_CONFIG.every(m => actions.every(a => permissions[m.id]?.[a]));
+    }, [permissions]);
+
+    const toggleGlobalAll = (checked: boolean) => {
+        const newPerms: Record<string, ModulePermissions> = {};
+        MODULE_CONFIG.forEach(m => {
+            newPerms[m.id] = { view: checked, add: checked, edit: checked, delete: checked };
+        });
+        setPermissions(newPerms);
+    };
+
+    const applyPreset = (preset: 'all' | 'manager' | 'readonly' | 'none') => {
+        const newPerms: Record<string, ModulePermissions> = {};
+        MODULE_CONFIG.forEach(m => {
+            if (preset === 'all') {
+                newPerms[m.id] = { view: true, add: true, edit: true, delete: true };
+            } else if (preset === 'manager') {
+                if (m.id === 'Settings') {
+                    newPerms[m.id] = { view: true, add: false, edit: false, delete: false };
+                } else {
+                    newPerms[m.id] = { view: true, add: true, edit: true, delete: true };
+                }
+            } else if (preset === 'readonly') {
+                newPerms[m.id] = { view: true, add: false, edit: false, delete: false };
+            } else {
+                newPerms[m.id] = { view: false, add: false, edit: false, delete: false };
+            }
+        });
+        setPermissions(newPerms);
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave({ id: role?.id, name, description, permissions });
+        setErrors({});
+        const trimmedName = name.trim();
+        const newErrors: Record<string, string> = {};
+
+        if (!trimmedName) {
+            newErrors.name = t('role_name_required');
+        } else if (roles.some(r => r.name.toLowerCase() === trimmedName.toLowerCase() && (!role || r.id !== role.id))) {
+            newErrors.name = t('role_name_duplicate');
+        }
+
+        if (Object.keys(newErrors).length > 0) {
+            setErrors(newErrors);
+            return;
+        }
+
+        onSave(
+            { id: role?.id, name: isSystemAdmin ? 'Administrator' : trimmedName, description: description.trim(), permissions },
+            role?.name
+        );
     };
 
     return (
         <div className={cn(CLASSES.modalOverlay, "sm:p-4 p-0")}>
             <div
                 style={{ height: window.innerWidth < 640 ? `${visualViewportHeight}px` : undefined }}
-                className={cn(CLASSES.modalContent, "max-w-3xl sm:h-auto sm:max-h-[90dvh] rounded-none sm:rounded-xl animate-in zoom-in-95 duration-300 relative overflow-hidden flex flex-col")}
+                className={cn(CLASSES.modalContent, "max-w-3xl sm:h-auto sm:max-h-[92dvh] rounded-none sm:rounded-2xl animate-in zoom-in-95 duration-300 relative overflow-hidden flex flex-col shadow-2xl")}
             >
-                <div className={cn(CLASSES.modalHeader, "py-2 md:py-2.5 px-4 md:px-5 shrink-0")}>
+                {/* Header */}
+                <div className={cn(CLASSES.modalHeader, "py-3 px-5 shrink-0 border-b border-gray-100 dark:border-dark-border")}>
                     <div className="flex items-center gap-3">
-                        <div className="p-1.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl border border-emerald-100 dark:border-emerald-800">
-                            <ShieldCheck size={18} />
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 rounded-xl border border-emerald-100 dark:border-emerald-800">
+                            <ShieldCheck size={20} />
                         </div>
-                        <Typography variant="h2" className="text-base md:text-lg font-semibold">{role ? t('edit_role') : t('add_role')}</Typography>
+                        <div>
+                            <Typography variant="h2" className="text-base md:text-lg font-bold">
+                                {role ? t('edit_role') : t('add_role')}
+                            </Typography>
+                            {isSystemAdmin && (
+                                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                    <Shield size={11} /> {t('system_role')}
+                                </span>
+                            )}
+                        </div>
                     </div>
                     <button onClick={onClose} className={CLASSES.buttonGhost}><X size={18} /></button>
                 </div>
+
                 <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
-                    <div className={cn(CLASSES.modalBody, "p-4 md:p-5 space-y-4 flex-1 overflow-y-auto")}>
+                    <div className={cn(CLASSES.modalBody, "p-4 md:p-6 space-y-5 flex-1 overflow-y-auto")}>
+                        {/* Name & Description Fields */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-1">
-                                <Typography variant="label">{t('role_identifier')} *</Typography>
-                                <input required className={cn(CLASSES.input, "h-11 md:h-10 rounded-md border-2 font-semibold")} value={name} onChange={e => setName(e.target.value)} placeholder={t('role_placeholder')} />
+                                <div className="flex items-center justify-between">
+                                    <Typography variant="label">{t('role_name')} *</Typography>
+                                    {isSystemAdmin && (
+                                        <span className="text-[11px] text-gray-400 font-normal">({t('admin_role_protected')})</span>
+                                    )}
+                                </div>
+                                <div className="relative">
+                                    <input
+                                        required
+                                        disabled={isSystemAdmin}
+                                        className={cn(
+                                            CLASSES.input,
+                                            "pl-10 h-11 md:h-10 rounded-xl border-2 font-semibold",
+                                            isSystemAdmin && "bg-gray-100 dark:bg-gray-800/60 cursor-not-allowed text-gray-500",
+                                            errors.name && CLASSES.inputError
+                                        )}
+                                        value={name}
+                                        onChange={e => setName(e.target.value)}
+                                        placeholder={t('role_placeholder')}
+                                    />
+                                    <Shield size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                                </div>
+                                {errors.name && (
+                                    <Typography variant="caption" className="text-red-500 px-1 block mt-0.5">
+                                        {errors.name}
+                                    </Typography>
+                                )}
                             </div>
                             <div className="space-y-1">
                                 <Typography variant="label">{t('description')}</Typography>
-                                <input className={cn(CLASSES.input, "h-11 md:h-10 rounded-md border-2")} value={description} onChange={e => setDescription(e.target.value)} placeholder={t('role_desc_placeholder')} />
+                                <input
+                                    className={cn(CLASSES.input, "h-11 md:h-10 rounded-xl border-2")}
+                                    value={description}
+                                    onChange={e => setDescription(e.target.value)}
+                                    placeholder={t('role_desc_placeholder')}
+                                />
                             </div>
                         </div>
 
-                        <div className="pt-2">
-                            <Typography variant="label" className="block mb-2 px-1 font-semibold text-gray-400">{t('functional_permissions')}</Typography>
-                            <div className="overflow-hidden border border-gray-100 dark:border-dark-border rounded-lg md:rounded-lg">
-                                <table className="w-full border-separate border-spacing-0">
-                                    <thead>
-                                        <tr className="bg-gray-50 dark:bg-gray-800/50">
-                                            <th className={cn(premiumTh, "pl-4")}>{t('module')}</th>
-                                            {actions.map(a => (
-                                                <th key={a} className={cn(premiumTh, "text-center capitalize w-20")}>{t(a)}</th>
-                                            ))}
-                                            <th className={cn(premiumTh, "text-center w-20")}>{t('all')}</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-50 dark:divide-dark-border">
-                                        {modules.map(m => {
-                                            const isAllChecked = actions.every(a => permissions[m][a]);
-                                            return (
-                                                <tr key={m} className="hover:bg-gray-50/50 dark:hover:bg-gray-800/20 transition-colors group">
-                                                    <td className={cn(premiumTd, "font-semibold pl-4")}>{t(m.toLowerCase()) || m}</td>
-                                                    {actions.map(a => (
-                                                        <td key={a} className={cn(premiumTd, "text-center")}>
+                        {/* Quick Presets Bar */}
+                        <div className="bg-gray-50 dark:bg-gray-800/40 p-3 rounded-xl border border-gray-100 dark:border-gray-800 flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400">
+                                <Key size={14} className="text-emerald-500" />
+                                <span>{t('preset_quick_setup')}:</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                <button
+                                    type="button"
+                                    onClick={() => applyPreset('all')}
+                                    className="px-2.5 py-1 text-xs font-bold rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 transition-colors"
+                                >
+                                    {t('full_access')}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => applyPreset('manager')}
+                                    className="px-2.5 py-1 text-xs font-bold rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 transition-colors"
+                                >
+                                    {t('custom_access')}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => applyPreset('readonly')}
+                                    className="px-2.5 py-1 text-xs font-bold rounded-lg bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 transition-colors"
+                                >
+                                    {t('read_only')}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => applyPreset('none')}
+                                    className="px-2.5 py-1 text-xs font-bold rounded-lg bg-gray-200/80 text-gray-700 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 transition-colors"
+                                >
+                                    {t('revoke_all')}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Permissions Matrix */}
+                        <div className="space-y-2">
+                            <div className="flex items-center justify-between px-1">
+                                <Typography variant="label" className="font-semibold text-gray-700 dark:text-gray-300">
+                                    {t('functional_permissions')}
+                                </Typography>
+                                <label className="inline-flex items-center gap-2 text-xs font-bold cursor-pointer text-emerald-600 dark:text-emerald-400 hover:underline select-none">
+                                    <input
+                                        type="checkbox"
+                                        className="w-4 h-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500/20 cursor-pointer accent-emerald-600"
+                                        checked={isGlobalAllChecked}
+                                        onChange={e => toggleGlobalAll(e.target.checked)}
+                                    />
+                                    <span>{t('grant_all')} ({t('all_modules')})</span>
+                                </label>
+                            </div>
+
+                            <div className="overflow-hidden border border-gray-200 dark:border-dark-border rounded-xl">
+                                <div className="overflow-x-auto scrollbar-thin">
+                                    <table className="w-full text-left border-collapse min-w-[560px]">
+                                        <thead>
+                                            <tr className="bg-gray-50/80 dark:bg-gray-800/70 border-b border-gray-200 dark:border-dark-border">
+                                                <th className={cn(premiumTh, "pl-4 text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider")}>
+                                                    {t('module')}
+                                                </th>
+                                                {actions.map(a => (
+                                                    <th key={a} className={cn(premiumTh, "text-center capitalize w-20 text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider")}>
+                                                        {t(a)}
+                                                    </th>
+                                                ))}
+                                                <th className={cn(premiumTh, "text-center w-20 text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider bg-emerald-50/40 dark:bg-emerald-950/20")}>
+                                                    {t('all')}
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100 dark:divide-dark-border/60">
+                                            {MODULE_CONFIG.map(m => {
+                                                const Icon = m.icon;
+                                                const modulePerms = permissions[m.id] || { view: false, add: false, edit: false, delete: false };
+                                                const isRowAll = actions.every(a => modulePerms[a]);
+
+                                                return (
+                                                    <tr key={m.id} className="hover:bg-gray-50/70 dark:hover:bg-gray-800/30 transition-colors group">
+                                                        <td className={cn(premiumTd, "pl-4 py-2.5")}>
+                                                            <div className="flex items-center gap-2.5">
+                                                                <div className="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 group-hover:bg-emerald-50 group-hover:text-emerald-600 dark:group-hover:bg-emerald-950/40 dark:group-hover:text-emerald-400 transition-colors">
+                                                                    <Icon size={15} />
+                                                                </div>
+                                                                <span className="font-semibold text-sm text-gray-800 dark:text-gray-200">
+                                                                    {t(m.labelKey) || m.id}
+                                                                </span>
+                                                            </div>
+                                                        </td>
+                                                        {actions.map(a => (
+                                                            <td key={a} className={cn(premiumTd, "text-center py-2.5")}>
+                                                                <div className="flex items-center justify-center">
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        className="w-5 h-5 rounded border-2 border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500/20 cursor-pointer transition-all accent-emerald-600 hover:border-emerald-500"
+                                                                        checked={modulePerms[a]}
+                                                                        onChange={() => togglePermission(m.id, a)}
+                                                                        title={`${t(m.labelKey)}: ${t(a)}`}
+                                                                    />
+                                                                </div>
+                                                            </td>
+                                                        ))}
+                                                        <td className={cn(premiumTd, "text-center py-2.5 bg-gray-50/30 dark:bg-gray-800/20")}>
                                                             <div className="flex items-center justify-center">
                                                                 <input
                                                                     type="checkbox"
-                                                                    className={cn(
-                                                                        "w-5 h-5 rounded border-2 border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500/20 cursor-pointer transition-all",
-                                                                        "checked:bg-emerald-600 checked:border-emerald-600 accent-emerald-600"
-                                                                    )}
-                                                                    checked={permissions[m][a]}
-                                                                    onChange={() => togglePermission(m, a)}
+                                                                    className="w-5 h-5 rounded border-2 border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500/20 cursor-pointer accent-emerald-600 hover:border-emerald-500"
+                                                                    checked={isRowAll}
+                                                                    onChange={e => toggleRowAll(m.id, e.target.checked)}
+                                                                    title={`${t(m.labelKey)}: ${t('all')}`}
                                                                 />
                                                             </div>
                                                         </td>
-                                                    ))}
-                                                    <td className={cn(premiumTd, "text-center bg-gray-50/30 dark:bg-gray-800/30")}>
-                                                        <div className="flex items-center justify-center">
-                                                            <input
-                                                                type="checkbox"
-                                                                className="w-5 h-5 rounded border-2 border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500/20 cursor-pointer accent-emerald-600"
-                                                                checked={isAllChecked}
-                                                                onChange={(e) => toggleAll(m, e.target.checked)}
-                                                            />
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })}
-                                    </tbody>
-                                </table>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <div className="border-t border-gray-100 dark:border-gray-800 p-4 md:p-5 flex gap-3">
-                        <button type="button" onClick={onClose} className={cn(CLASSES.buttonSecondary, "flex-1 h-11 md:h-10 border-2 font-semibold rounded-xl")}>{t('cancel')}</button>
-                        <button type="submit" className={cn(CLASSES.buttonPrimary, "flex-1 h-11 md:h-10 shadow-md font-semibold rounded-xl")}>{t('commit_role')}</button>
+
+                    {/* Footer */}
+                    <div className="border-t border-gray-100 dark:border-gray-800 p-4 md:p-5 flex gap-3 bg-gray-50/50 dark:bg-gray-800/20">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className={cn(CLASSES.buttonSecondary, "flex-1 h-11 md:h-10 border-2 font-semibold rounded-xl")}
+                        >
+                            {t('cancel')}
+                        </button>
+                        <button
+                            type="submit"
+                            className={cn(CLASSES.buttonPrimary, "flex-1 h-11 md:h-10 shadow-lg shadow-emerald-500/20 font-semibold rounded-xl")}
+                        >
+                            {role ? t('update') : t('commit_role')}
+                        </button>
                     </div>
                 </form>
             </div>
@@ -1432,7 +1623,7 @@ const ChartOfAccountsTab: React.FC = () => {
 };
 
 const UserRoleTab: React.FC = () => {
-    const { users, roles, currentUser, addUser, updateUser, deleteUser, addRole, updateRole, deleteRole, t } = useApp();
+    const { users, roles, currentUser, addUser, updateUser, deleteUser, addRole, updateRole, deleteRole, can, t } = useApp();
     const [activeSubTab, setActiveSubTab] = useState<'Users' | 'Roles'>('Users');
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -1441,12 +1632,47 @@ const UserRoleTab: React.FC = () => {
     const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | undefined>(undefined);
     const [editingRole, setEditingRole] = useState<Role | undefined>(undefined);
-    const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-    const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-    const [deleteTargetType, setDeleteTargetType] = useState<'User' | 'Role' | null>(null);
 
-    const filteredUsers = users.filter(u => u.name.toLowerCase().includes(searchTerm.toLowerCase()) || u.id.toLowerCase().includes(searchTerm.toLowerCase()));
-    const filteredRoles = roles.filter(r => r.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    const [deleteModal, setDeleteModal] = useState<{
+        isOpen: boolean;
+        type: 'User' | 'Role';
+        targetUser?: User;
+        targetRole?: Role;
+        isBlocked?: boolean;
+        blockReason?: string;
+    }>({ isOpen: false, type: 'User' });
+
+    // Authorization check: Only Administrator or users with Settings edit can access
+    const isAdmin = currentUser?.role === 'Administrator' || (can && can('Settings', 'edit'));
+
+    // Count assigned users for each role
+    const roleMemberCounts = useMemo(() => {
+        const counts: Record<string, number> = {};
+        users.forEach(u => {
+            counts[u.role] = (counts[u.role] || 0) + 1;
+        });
+        return counts;
+    }, [users]);
+
+    const filteredUsers = useMemo(() => {
+        const term = searchTerm.toLowerCase().trim();
+        if (!term) return users;
+        return users.filter(u =>
+            u.name.toLowerCase().includes(term) ||
+            u.id.toLowerCase().includes(term) ||
+            u.role.toLowerCase().includes(term) ||
+            (u.phone && u.phone.toLowerCase().includes(term))
+        );
+    }, [users, searchTerm]);
+
+    const filteredRoles = useMemo(() => {
+        const term = searchTerm.toLowerCase().trim();
+        if (!term) return roles;
+        return roles.filter(r =>
+            r.name.toLowerCase().includes(term) ||
+            (r.description && r.description.toLowerCase().includes(term))
+        );
+    }, [roles, searchTerm]);
 
     const handleSaveUser = (data: any) => {
         if (users.find(u => u.id === data.id && (!editingUser || editingUser.id !== data.id))) {
@@ -1459,139 +1685,423 @@ const UserRoleTab: React.FC = () => {
         setEditingUser(undefined);
     };
 
-    const handleSaveRole = (data: any) => {
-        if (data.id) updateRole(data);
-        else addRole({ ...data, id: Math.random().toString(36).substr(2, 9) });
+    const handleSaveRole = (data: any, oldName?: string) => {
+        if (data.id) {
+            updateRole(data, oldName);
+        } else {
+            addRole({ ...data, id: Math.random().toString(36).substr(2, 9) });
+        }
         setIsRoleModalOpen(false);
         setEditingRole(undefined);
     };
 
+    const handleDeleteUserPrompt = (user: User) => {
+        if (user.id === currentUser?.id) {
+            setDeleteModal({
+                isOpen: true,
+                type: 'User',
+                targetUser: user,
+                isBlocked: true,
+                blockReason: t('cannot_delete_own_account')
+            });
+            return;
+        }
+
+        // Safety: check if this is the only active Administrator
+        const adminUsers = users.filter(u => u.role === 'Administrator' && u.status === UserStatus.ACTIVE);
+        if (user.role === 'Administrator' && adminUsers.length <= 1) {
+            setDeleteModal({
+                isOpen: true,
+                type: 'User',
+                targetUser: user,
+                isBlocked: true,
+                blockReason: t('cannot_delete_last_admin')
+            });
+            return;
+        }
+
+        setDeleteModal({
+            isOpen: true,
+            type: 'User',
+            targetUser: user,
+            isBlocked: false
+        });
+    };
+
+    const handleDeleteRolePrompt = (role: Role) => {
+        if (role.name === 'Administrator') {
+            setDeleteModal({
+                isOpen: true,
+                type: 'Role',
+                targetRole: role,
+                isBlocked: true,
+                blockReason: t('admin_role_protected')
+            });
+            return;
+        }
+
+        const memberCount = roleMemberCounts[role.name] || 0;
+        if (memberCount > 0) {
+            setDeleteModal({
+                isOpen: true,
+                type: 'Role',
+                targetRole: role,
+                isBlocked: true,
+                blockReason: t('cannot_delete_role_assigned', { count: memberCount })
+            });
+            return;
+        }
+
+        setDeleteModal({
+            isOpen: true,
+            type: 'Role',
+            targetRole: role,
+            isBlocked: false
+        });
+    };
+
+    const confirmDelete = () => {
+        if (deleteModal.isBlocked) return;
+
+        if (deleteModal.type === 'User' && deleteModal.targetUser) {
+            deleteUser(deleteModal.targetUser.id);
+        } else if (deleteModal.type === 'Role' && deleteModal.targetRole) {
+            deleteRole(deleteModal.targetRole.id);
+        }
+        setDeleteModal({ isOpen: false, type: 'User' });
+    };
+
+    if (!isAdmin) {
+        return (
+            <div className={cn(CLASSES.card, "p-8 md:p-12 text-center max-w-lg mx-auto my-12 space-y-4 border-dashed border-2")}>
+                <div className="w-16 h-16 mx-auto rounded-2xl bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-200 dark:border-amber-800">
+                    <ShieldAlert size={32} />
+                </div>
+                <Typography variant="h2" className="text-lg font-bold text-gray-900 dark:text-white">
+                    {t('admin_access_required')}
+                </Typography>
+                <Typography variant="body" className="text-gray-500 dark:text-gray-400 max-w-sm mx-auto text-sm">
+                    {t('admin_access_required_desc')}
+                </Typography>
+            </div>
+        );
+    }
+
     return (
         <div className="space-y-6 pb-24">
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="flex gap-2">
-                    {['Users', 'Roles'].map(tab => (
-                        <button
-                            key={tab}
-                            onClick={() => setActiveSubTab(tab as any)}
-                            className={cn(
-                                "px-4 py-2 text-sm font-bold rounded-xl transition-all",
-                                activeSubTab === tab
-                                    ? "bg-emerald-600 text-white shadow-md shadow-emerald-500/20"
-                                    : "bg-white dark:bg-dark-card text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800"
-                            )}
-                        >
-                            {t(tab.toLowerCase() + '_tab') || tab}
-                        </button>
-                    ))}
+            {/* Top Toolbar: Subtabs + Search + Add Button */}
+            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+                <div className="flex items-center gap-1.5 p-1 bg-gray-100 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl">
+                    <button
+                        onClick={() => setActiveSubTab('Users')}
+                        className={cn(
+                            "flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-all",
+                            activeSubTab === 'Users'
+                                ? "bg-white dark:bg-emerald-600 text-emerald-600 dark:text-white shadow-sm"
+                                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                        )}
+                    >
+                        <UserIcon size={16} />
+                        <span>{t('user_management')}</span>
+                        <span className={cn(
+                            "px-1.5 py-0.2 rounded-full text-xs font-bold",
+                            activeSubTab === 'Users'
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-700 dark:text-white"
+                                : "bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                        )}>
+                            {users.length}
+                        </span>
+                    </button>
+
+                    <button
+                        onClick={() => setActiveSubTab('Roles')}
+                        className={cn(
+                            "flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-all",
+                            activeSubTab === 'Roles'
+                                ? "bg-white dark:bg-emerald-600 text-emerald-600 dark:text-white shadow-sm"
+                                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                        )}
+                    >
+                        <ShieldCheck size={16} />
+                        <span>{t('role_management')}</span>
+                        <span className={cn(
+                            "px-1.5 py-0.2 rounded-full text-xs font-bold",
+                            activeSubTab === 'Roles'
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-700 dark:text-white"
+                                : "bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                        )}>
+                            {roles.length}
+                        </span>
+                    </button>
                 </div>
 
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <div className="relative flex-1 sm:flex-none">
+                <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                    <div className="relative flex-1 sm:w-64">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                        <input className={cn(CLASSES.input, "pl-10 h-10 text-sm rounded-xl")} placeholder={t('search')} value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+                        <input
+                            className={cn(CLASSES.input, "pl-10 pr-8 h-10 text-sm rounded-xl w-full")}
+                            placeholder={activeSubTab === 'Users' ? t('search_users') || t('search') : t('search_roles') || t('search')}
+                            value={searchTerm}
+                            onChange={e => setSearchTerm(e.target.value)}
+                        />
+                        {searchTerm && (
+                            <button
+                                onClick={() => setSearchTerm('')}
+                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
                     </div>
                     <button
-                        onClick={() => activeSubTab === 'Users' ? (setEditingUser(undefined), setIsUserModalOpen(true)) : (setEditingRole(undefined), setIsRoleModalOpen(true))}
-                        className={cn(CLASSES.buttonPrimary, "h-10 px-4 rounded-xl shadow-sm text-sm font-bold shrink-0")}
+                        onClick={() => {
+                            if (activeSubTab === 'Users') {
+                                setEditingUser(undefined);
+                                setIsUserModalOpen(true);
+                            } else {
+                                setEditingRole(undefined);
+                                setIsRoleModalOpen(true);
+                            }
+                        }}
+                        className={cn(CLASSES.buttonPrimary, "h-10 px-4 rounded-xl shadow-md shadow-emerald-500/20 text-sm font-bold shrink-0 flex items-center gap-2")}
                     >
-                        <PlusCircle size={16} /> {activeSubTab === 'Users' ? t('add_user') : t('add_role')}
+                        <PlusCircle size={16} />
+                        <span>{activeSubTab === 'Users' ? t('add_user') : t('add_role')}</span>
                     </button>
                 </div>
             </div>
 
-            <div className={cn(CLASSES.card, "overflow-hidden border-gray-200 dark:border-dark-border rounded-xl md:rounded-xl")}>
+            {/* Table Area */}
+            <div className={cn(CLASSES.card, "overflow-hidden border-gray-200 dark:border-dark-border rounded-xl md:rounded-xl shadow-sm")}>
                 <div className="overflow-x-auto scrollbar-thin">
                     <table className="w-full text-left border-collapse min-w-[800px]">
                         <thead>
-                            <tr>
+                            <tr className="bg-gray-50/80 dark:bg-gray-800/60">
                                 {activeSubTab === 'Users' ? (
                                     <>
-                                        <th className={cn(premiumTh, "w-40")}>{t('user_id')}</th>
-                                        <th className={cn(premiumTh, "w-48")}>{t('name')}</th>
-                                        <th className={cn(premiumTh, "w-32")}>{t('role_name')}</th>
+                                        <th className={cn(premiumTh, "w-44 pl-5")}>{t('user_id')}</th>
+                                        <th className={cn(premiumTh, "w-56")}>{t('name')}</th>
+                                        <th className={cn(premiumTh, "w-44")}>{t('role_name')}</th>
                                         <th className={cn(premiumTh, "w-32 text-center")}>{t('status')}</th>
                                         <th className={cn(premiumTh, "w-40")}>{t('phone')}</th>
-                                        <th className={cn(premiumTh, "w-12")}></th>
+                                        <th className={cn(premiumTh, "w-14 text-center pr-4")}></th>
                                     </>
                                 ) : (
                                     <>
-                                        <th className={cn(premiumTh, "w-48")}>{t('role_name')}</th>
+                                        <th className={cn(premiumTh, "w-56 pl-5")}>{t('role_name')}</th>
                                         <th className={cn(premiumTh, "w-auto")}>{t('description')}</th>
-                                        <th className={cn(premiumTh, "w-12")}></th>
+                                        <th className={cn(premiumTh, "w-48 text-center")}>{t('assigned_members')}</th>
+                                        <th className={cn(premiumTh, "w-56")}>{t('functional_permissions')}</th>
+                                        <th className={cn(premiumTh, "w-14 text-center pr-4")}></th>
                                     </>
                                 )}
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-50 dark:divide-gray-800">
+                        <tbody className="divide-y divide-gray-100 dark:divide-dark-border/60">
                             {activeSubTab === 'Users' ? (
-                                filteredUsers.map((u, i) => (
-                                    <tr key={u.id} className={cn("hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors", i % 2 === 0 ? "bg-white dark:bg-[#161b22]" : "bg-gray-50/20 dark:bg-gray-800/10")}>
-                                        <td className={cn(premiumTd, "font-mono font-semibold")}>{u.id}</td>
-                                        <td className={premiumTd}><span className="font-medium">{u.name}</span></td>
-                                        <td className={premiumTd}><span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-lg text-xs font-bold border border-blue-100">{u.role}</span></td>
-                                        <td className={cn(premiumTd, "text-center")}>
-                                            <span className={cn(
-                                                "px-2 py-0.5 rounded-lg text-xs font-bold border",
-                                                u.status === UserStatus.ACTIVE ? "bg-emerald-50 text-emerald-600 border-emerald-100" : 
-                                                u.status === UserStatus.LOCKED ? "bg-amber-50 text-amber-600 border-amber-100" :
-                                                "bg-red-50 text-red-600 border-red-100"
-                                            )}>
-                                                {u.status}
-                                            </span>
-                                        </td>
-                                        <td className={premiumTd}>{u.phone || '-'}</td>
-                                        <td className={cn(premiumTd, "text-center")}>
-                                            <SettingsMenu
-                                                onEdit={() => { setEditingUser(u); setIsUserModalOpen(true); }}
-                                                onDelete={u.id === currentUser?.id ? undefined : () => { setDeleteTargetId(u.id); setDeleteTargetType('User'); setDeleteConfirmOpen(true); }}
-                                            />
+                                filteredUsers.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={6} className="text-center py-10 text-gray-400">
+                                            {t('no_records_found')}
                                         </td>
                                     </tr>
-                                ))
+                                ) : (
+                                    filteredUsers.map((u, i) => {
+                                        const isCurrentUser = u.id === currentUser?.id;
+                                        return (
+                                            <tr key={u.id} className={cn("hover:bg-gray-50/70 dark:hover:bg-gray-800/30 transition-colors", i % 2 === 0 ? "bg-white dark:bg-[#161b22]" : "bg-gray-50/30 dark:bg-gray-800/10")}>
+                                                <td className={cn(premiumTd, "pl-5 py-3")}>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-mono font-bold text-xs px-2.5 py-1 rounded-md bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-200/80 dark:border-gray-700">
+                                                            {u.id}
+                                                        </span>
+                                                        {isCurrentUser && (
+                                                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                                                {t('you')}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className={cn(premiumTd, "py-3")}>
+                                                    <span className="font-semibold text-gray-900 dark:text-gray-100">{u.name}</span>
+                                                </td>
+                                                <td className={cn(premiumTd, "py-3")}>
+                                                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 rounded-lg text-xs font-bold border border-blue-100 dark:border-blue-900">
+                                                        <Shield size={12} className="text-blue-500" />
+                                                        {u.role}
+                                                    </span>
+                                                </td>
+                                                <td className={cn(premiumTd, "text-center py-3")}>
+                                                    <span className={cn(
+                                                        "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border",
+                                                        u.status === UserStatus.ACTIVE
+                                                            ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
+                                                            : u.status === UserStatus.LOCKED
+                                                                ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800"
+                                                                : "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
+                                                    )}>
+                                                        {t(u.status.toLowerCase()) || u.status}
+                                                    </span>
+                                                </td>
+                                                <td className={cn(premiumTd, "py-3 text-gray-600 dark:text-gray-400 font-mono text-xs")}>
+                                                    {u.phone || '-'}
+                                                </td>
+                                                <td className={cn(premiumTd, "text-center pr-4 py-3")} onClick={e => e.stopPropagation()}>
+                                                    <SettingsMenu
+                                                        onEdit={() => { setEditingUser(u); setIsUserModalOpen(true); }}
+                                                        onDelete={isCurrentUser ? undefined : () => handleDeleteUserPrompt(u)}
+                                                    />
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )
                             ) : (
-                                filteredRoles.map((r, i) => (
-                                    <tr key={r.id} className={cn("hover:bg-gray-50 dark:hover:bg-gray-800/20 transition-colors", i % 2 === 0 ? "bg-white dark:bg-[#161b22]" : "bg-gray-50/20 dark:bg-gray-800/10")}>
-                                        <td className={cn(premiumTd, "font-semibold")}>{r.name}</td>
-                                        <td className={premiumTd}>{r.description}</td>
-                                        <td className={cn(premiumTd, "text-center")}>
-                                            <SettingsMenu
-                                                onEdit={() => { setEditingRole(r); setIsRoleModalOpen(true); }}
-                                                onDelete={() => { setDeleteTargetId(r.id); setDeleteTargetType('Role'); setDeleteConfirmOpen(true); }}
-                                            />
+                                filteredRoles.length === 0 ? (
+                                    <tr>
+                                        <td colSpan={5} className="text-center py-10 text-gray-400">
+                                            {t('no_records_found')}
                                         </td>
                                     </tr>
-                                ))
+                                ) : (
+                                    filteredRoles.map((r, i) => {
+                                        const isSystem = r.name === 'Administrator';
+                                        const membersCount = roleMemberCounts[r.name] || 0;
+
+                                        // Permission summary stats
+                                        const moduleKeys = Object.keys(r.permissions || {});
+                                        const activeModules = moduleKeys.filter(k => {
+                                            const p = r.permissions[k];
+                                            return p && (p.view || p.add || p.edit || p.delete);
+                                        }).length;
+                                        const isFull = activeModules === 8 && moduleKeys.every(k => {
+                                            const p = r.permissions[k];
+                                            return p && p.view && p.add && p.edit && p.delete;
+                                        });
+
+                                        return (
+                                            <tr key={r.id} className={cn("hover:bg-gray-50/70 dark:hover:bg-gray-800/30 transition-colors", i % 2 === 0 ? "bg-white dark:bg-[#161b22]" : "bg-gray-50/30 dark:bg-gray-800/10")}>
+                                                <td className={cn(premiumTd, "pl-5 py-3")}>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-bold text-gray-900 dark:text-gray-100">{r.name}</span>
+                                                        {isSystem && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                                                <ShieldCheck size={11} /> {t('system_role')}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className={cn(premiumTd, "py-3 text-gray-600 dark:text-gray-400")}>
+                                                    {r.description || '-'}
+                                                </td>
+                                                <td className={cn(premiumTd, "text-center py-3")}>
+                                                    <span className={cn(
+                                                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold",
+                                                        membersCount > 0
+                                                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                                                            : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                                                    )}>
+                                                        <Users size={12} />
+                                                        <span>{membersCount === 1 ? t('member_count_single') : t('members_count', { count: membersCount })}</span>
+                                                    </span>
+                                                </td>
+                                                <td className={cn(premiumTd, "py-3")}>
+                                                    {isFull ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
+                                                            <CheckCircle2 size={12} /> {t('full_access')} (8/8)
+                                                        </span>
+                                                    ) : activeModules > 0 ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800">
+                                                            {t('modules_count', { count: activeModules, total: 8 })}
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                                                            {t('no_access')}
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className={cn(premiumTd, "text-center pr-4 py-3")} onClick={e => e.stopPropagation()}>
+                                                    <SettingsMenu
+                                                        onEdit={() => { setEditingRole(r); setIsRoleModalOpen(true); }}
+                                                        onDelete={isSystem ? undefined : () => handleDeleteRolePrompt(r)}
+                                                    />
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                )
                             )}
                         </tbody>
                     </table>
                 </div>
             </div>
 
-            {isUserModalOpen && <UserModal user={editingUser} onClose={() => setIsUserModalOpen(false)} onSave={handleSaveUser} />}
-            {isRoleModalOpen && <RolePermissionsModal role={editingRole} onClose={() => setIsRoleModalOpen(false)} onSave={handleSaveRole} />}
+            {/* Modals */}
+            {isUserModalOpen && (
+                <UserModal
+                    user={editingUser}
+                    onClose={() => setIsUserModalOpen(false)}
+                    onSave={handleSaveUser}
+                />
+            )}
 
-            {isDeleteConfirmOpen && (
+            {isRoleModalOpen && (
+                <RolePermissionsModal
+                    role={editingRole}
+                    onClose={() => setIsRoleModalOpen(false)}
+                    onSave={handleSaveRole}
+                />
+            )}
+
+            {/* Enhanced Delete Confirmation Dialog */}
+            {deleteModal.isOpen && (
                 <div className={CLASSES.modalOverlay}>
-                    <div className={cn(CLASSES.modalContent, "max-w-md rounded-xl")}>
-                        <div className={cn(CLASSES.modalHeader, "py-2 md:py-2.5 px-4 md:px-5 justify-center")}>
-                            <Typography variant="h2" className="text-lg text-center w-full">{t('confirm_removal')}</Typography>
+                    <div className={cn(CLASSES.modalContent, "max-w-md rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200")}>
+                        <div className={cn(CLASSES.modalHeader, "py-3 px-5 justify-center border-b border-gray-100 dark:border-dark-border")}>
+                            <Typography variant="h2" className="text-base font-bold text-center w-full">
+                                {deleteModal.isBlocked ? t('action_not_allowed') || 'Action Not Allowed' : t('confirm_removal')}
+                            </Typography>
                         </div>
-                        <div className={cn(CLASSES.modalBody, "text-center")}>
-                            <Typography variant="body">{t('delete_record_confirm')}</Typography>
+                        <div className={cn(CLASSES.modalBody, "p-5 text-center space-y-4")}>
+                            {deleteModal.isBlocked ? (
+                                <div className="space-y-3">
+                                    <div className="w-12 h-12 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center mx-auto">
+                                        <AlertTriangle size={24} />
+                                    </div>
+                                    <Typography variant="body" className="text-gray-700 dark:text-gray-300 text-sm">
+                                        {deleteModal.blockReason}
+                                    </Typography>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-900/30 text-red-600 flex items-center justify-center mx-auto">
+                                        <Trash2 size={24} />
+                                    </div>
+                                    <Typography variant="body" className="text-gray-700 dark:text-gray-300 text-sm">
+                                        {deleteModal.type === 'User' && deleteModal.targetUser
+                                            ? t('confirm_delete_user', { name: deleteModal.targetUser.name }) || `Are you sure you want to delete user "${deleteModal.targetUser.name}"?`
+                                            : deleteModal.targetRole
+                                                ? t('confirm_delete_role', { name: deleteModal.targetRole.name }) || `Are you sure you want to delete role "${deleteModal.targetRole.name}"?`
+                                                : t('delete_record_confirm')}
+                                    </Typography>
+                                </div>
+                            )}
                         </div>
-                        <div className={cn(CLASSES.modalFooter, "flex-row items-center gap-3 py-2 md:py-2.5 px-5 md:px-6 bg-gray-50 dark:bg-gray-800/20")}>
-                            <button onClick={() => setDeleteConfirmOpen(false)} className={cn(CLASSES.buttonSecondary, "flex-1 h-11 md:h-10 border-2 rounded-xl")}>{t('cancel')}</button>
+                        <div className={cn(CLASSES.modalFooter, "flex-row items-center gap-3 py-3 px-5 bg-gray-50/80 dark:bg-gray-800/40 border-t border-gray-100 dark:border-dark-border")}>
                             <button
-                                onClick={() => {
-                                    if (deleteTargetId && deleteTargetType === 'User') deleteUser(deleteTargetId);
-                                    if (deleteTargetId && deleteTargetType === 'Role') deleteRole(deleteTargetId);
-                                    setDeleteConfirmOpen(false);
-                                }}
-                                className={cn(CLASSES.buttonDanger, "flex-1 h-11 md:h-10 rounded-xl")}
+                                onClick={() => setDeleteModal({ isOpen: false, type: 'User' })}
+                                className={cn(CLASSES.buttonSecondary, "flex-1 h-10 border-2 rounded-xl font-semibold")}
                             >
-                                {t('confirm')}
+                                {deleteModal.isBlocked ? t('close') || 'Close' : t('cancel')}
                             </button>
+                            {!deleteModal.isBlocked && (
+                                <button
+                                    onClick={confirmDelete}
+                                    className={cn(CLASSES.buttonDanger, "flex-1 h-10 rounded-xl font-semibold shadow-md shadow-red-500/20")}
+                                >
+                                    {t('confirm')}
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
