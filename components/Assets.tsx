@@ -107,7 +107,7 @@ const KPICard: React.FC<{
 
 export const Assets: React.FC = () => {
     const { 
-        assets, liabilities, addAsset, deleteAsset, addLiability, deleteLiability, 
+        assets, liabilities, addAsset, updateAsset, deleteAsset, addLiability, updateLiability, deleteLiability, 
         settings, t, updateAssetValuation, updateLiabilityBalance, chartOfAccounts,
         markAssetAsSold, markLiabilityAsPaidOff
     } = useApp();
@@ -123,6 +123,8 @@ export const Assets: React.FC = () => {
     const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
     const [isDocsExpanded, setIsDocsExpanded] = useState(true);
     const [viewingItem, setViewingItem] = useState<{ id: string, type: 'asset' | 'liability' } | null>(null);
+    const [editingAsset, setEditingAsset] = useState<Asset | null>(null);
+    const [editingLiability, setEditingLiability] = useState<Liability | null>(null);
     const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [deleteTarget, setDeleteTarget] = useState<{ id: string, type: 'asset' | 'liability', name: string } | null>(null);
     const [previewDoc, setPreviewDoc] = useState<Attachment | null>(null);
@@ -169,6 +171,8 @@ export const Assets: React.FC = () => {
     }, []);
 
     const resetForms = () => {
+        setEditingAsset(null);
+        setEditingLiability(null);
         setAssetForm({ 
             glCode: '', 
             name: '', 
@@ -200,6 +204,51 @@ export const Assets: React.FC = () => {
         setAssetErrors({});
         setLiabErrors({});
         setGeneralError(null);
+    };
+
+    const openEditAsset = (asset: Asset) => {
+        setEditingAsset(asset);
+        setEditingLiability(null);
+        setAssetErrors({});
+        setGeneralError(null);
+        setAssetForm({
+            glCode: asset.glCode,
+            name: asset.name,
+            localName: asset.localName || '',
+            type: asset.type,
+            purchaseDate: asset.purchaseDate ? asset.purchaseDate.split('T')[0] : getPhnomPenhNowISO().split('T')[0],
+            cost: asset.cost !== undefined ? asset.cost.toLocaleString('en-US') : '',
+            currentValue: asset.currentValue !== undefined ? asset.currentValue.toLocaleString('en-US') : '',
+            currency: asset.currency as any,
+            status: asset.status,
+            note: asset.note || ''
+        });
+        setPendingFiles(asset.documents || []);
+        setAddAssetOpen(true);
+    };
+
+    const openEditLiability = (liability: Liability) => {
+        setEditingLiability(liability);
+        setEditingAsset(null);
+        setLiabErrors({});
+        setGeneralError(null);
+        setLiabForm({
+            glCode: liability.glCode,
+            name: liability.name,
+            localName: liability.localName || '',
+            type: liability.type,
+            amount: liability.amount !== undefined ? liability.amount.toLocaleString('en-US') : '',
+            remaining: liability.remaining !== undefined ? liability.remaining.toLocaleString('en-US') : '',
+            interestRate: liability.interestRate !== undefined && liability.interestRate !== null ? liability.interestRate.toString() : '',
+            monthlyPayment: liability.monthlyPayment ? liability.monthlyPayment.toLocaleString('en-US') : '',
+            currency: liability.currency as any,
+            startDate: liability.startDate ? liability.startDate.split('T')[0] : getPhnomPenhNowISO().split('T')[0],
+            endDate: liability.endDate ? liability.endDate.split('T')[0] : '',
+            status: liability.status,
+            note: liability.note || ''
+        });
+        setPendingFiles(liability.documents || []);
+        setAddLiabilityOpen(true);
     };
 
     const totalAssetsVal = assets.filter(a => a.status === 'Active').reduce((sum, a) => sum + convertToDefault(a.currentValue, a.currency, settings.defaultCurrency, settings.exchangeRates), 0);
@@ -297,7 +346,7 @@ export const Assets: React.FC = () => {
                 errors.glCode = t('gl_code_asset_range');
             } else {
                 const isDuplicate = 
-                    assets.some(a => a.glCode === glCode) || 
+                    assets.some(a => a.id !== editingAsset?.id && a.glCode === glCode) || 
                     liabilities.some(l => l.glCode === glCode) ||
                     chartOfAccounts.some(coa => coa.code === glCode);
                 
@@ -328,20 +377,37 @@ export const Assets: React.FC = () => {
         setIsSubmitting(true);
         try {
             await new Promise(r => setTimeout(r, 600)); 
-            addAsset({ 
-                glCode: assetForm.glCode, 
-                name: assetForm.name, 
-                localName: assetForm.localName, 
-                type: assetForm.type, 
-                purchaseDate: assetForm.purchaseDate, 
-                cost, 
-                currentValue: val, 
-                currency: assetForm.currency, 
-                status: assetForm.status, 
-                note: assetForm.note, 
-                depreciationMethod: DepreciationMethod.NONE, 
-                documents: pendingFiles 
-            }); 
+            if (editingAsset) {
+                updateAsset({ 
+                    ...editingAsset,
+                    glCode: assetForm.glCode, 
+                    name: assetForm.name, 
+                    localName: assetForm.localName, 
+                    type: assetForm.type, 
+                    purchaseDate: assetForm.purchaseDate, 
+                    cost, 
+                    currentValue: val, 
+                    currency: assetForm.currency, 
+                    status: assetForm.status, 
+                    note: assetForm.note, 
+                    documents: pendingFiles 
+                }); 
+            } else {
+                addAsset({ 
+                    glCode: assetForm.glCode, 
+                    name: assetForm.name, 
+                    localName: assetForm.localName, 
+                    type: assetForm.type, 
+                    purchaseDate: assetForm.purchaseDate, 
+                    cost, 
+                    currentValue: val, 
+                    currency: assetForm.currency, 
+                    status: assetForm.status, 
+                    note: assetForm.note, 
+                    depreciationMethod: DepreciationMethod.NONE, 
+                    documents: pendingFiles 
+                }); 
+            }
             setAddAssetOpen(false); 
             resetForms();
         } catch (err) {
@@ -370,7 +436,7 @@ export const Assets: React.FC = () => {
             } else {
                 const isDuplicate = 
                     assets.some(a => a.glCode === glCode) || 
-                    liabilities.some(l => l.glCode === glCode) ||
+                    liabilities.some(l => l.id !== editingLiability?.id && l.glCode === glCode) ||
                     chartOfAccounts.some(coa => coa.code === glCode);
                 
                 if (isDuplicate) {
@@ -400,22 +466,42 @@ export const Assets: React.FC = () => {
         setIsSubmitting(true);
         try {
             await new Promise(r => setTimeout(r, 600));
-            addLiability({ 
-                glCode: liabForm.glCode, 
-                name: liabForm.name, 
-                localName: liabForm.localName, 
-                type: liabForm.type, 
-                amount: amt, 
-                remaining: rem, 
-                currency: liabForm.currency, 
-                interestRate: parseFloat(liabForm.interestRate) || 0, 
-                monthlyPayment: parseFloat(liabForm.monthlyPayment.replace(/,/g, '')) || 0,
-                startDate: liabForm.startDate, 
-                endDate: liabForm.endDate || undefined, 
-                status: liabForm.status, 
-                note: liabForm.note, 
-                documents: pendingFiles 
-            }); 
+            if (editingLiability) {
+                updateLiability({ 
+                    ...editingLiability,
+                    glCode: liabForm.glCode, 
+                    name: liabForm.name, 
+                    localName: liabForm.localName, 
+                    type: liabForm.type, 
+                    amount: amt, 
+                    remaining: rem, 
+                    currency: liabForm.currency, 
+                    interestRate: parseFloat(liabForm.interestRate) || 0, 
+                    monthlyPayment: parseFloat(liabForm.monthlyPayment.replace(/,/g, '')) || 0,
+                    startDate: liabForm.startDate, 
+                    endDate: liabForm.endDate || undefined, 
+                    status: liabForm.status, 
+                    note: liabForm.note, 
+                    documents: pendingFiles 
+                }); 
+            } else {
+                addLiability({ 
+                    glCode: liabForm.glCode, 
+                    name: liabForm.name, 
+                    localName: liabForm.localName, 
+                    type: liabForm.type, 
+                    amount: amt, 
+                    remaining: rem, 
+                    currency: liabForm.currency, 
+                    interestRate: parseFloat(liabForm.interestRate) || 0, 
+                    monthlyPayment: parseFloat(liabForm.monthlyPayment.replace(/,/g, '')) || 0,
+                    startDate: liabForm.startDate, 
+                    endDate: liabForm.endDate || undefined, 
+                    status: liabForm.status, 
+                    note: liabForm.note, 
+                    documents: pendingFiles 
+                }); 
+            }
             setAddLiabilityOpen(false); 
             resetForms();
         } catch (err) {
@@ -700,8 +786,8 @@ export const Assets: React.FC = () => {
                                                 <td className={cn(premiumTd, "text-right tabular-nums text-sm md:text-base font-medium", a.cost < 0 ? "text-red-600 dark:text-red-400" : "text-gray-400")}>{formatCurrency(a.cost, a.currency, settings.language)}</td>
                                                 <td className={cn(premiumTd, "text-right tabular-nums text-sm md:text-base font-medium", a.currentValue < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>{formatCurrency(a.currentValue, a.currency, settings.language)}</td>
                                                 <td className={cn(premiumTd, "text-right tabular-nums text-sm md:text-base font-medium", a.currentValue >= a.cost ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>{a.currentValue >= a.cost ? '+' : ''}{formatCurrency(a.currentValue - a.cost, a.currency, settings.language)}</td>
-                                                <td className={cn(premiumTd, "text-center sticky right-0 bg-inherit border-l shadow-[-4px_0_12px_rgba(0,0,0,0.03)] pr-4")} onClick={e => e.stopPropagation()}>
-                                                    <div className="flex justify-center"><AssetsMenu onView={() => openDetailsModal(a.id, 'asset')} onUpdate={() => { setViewingItem({id: a.id, type: 'asset'}); setActionForm({amount: a.currentValue.toLocaleString(), date: getPhnomPenhNowISO().split('T')[0], note: ''}); setUpdateValueOpen(true); }} onDelete={() => { setDeleteTarget({id: a.id, type:'asset', name: a.name}); setDeleteConfirmOpen(true); }} onMarkAsSold={a.status !== 'Sold' ? () => { setViewingItem({id: a.id, type: 'asset'}); setSoldForm({salePrice: a.currentValue.toLocaleString(), saleDate: getPhnomPenhNowISO().split('T')[0]}); setMarkAsSoldOpen(true); } : undefined} /></div>
+                                                <td className={cn(premiumTd, "text-center sticky right-0 z-10 border-l border-gray-100 dark:border-dark-border shadow-[-4px_0_12px_rgba(0,0,0,0.03)] pr-4 bg-white dark:bg-[#161b22] group-hover:bg-[#f0fdf4] dark:group-hover:bg-[#19221d]")} onClick={e => e.stopPropagation()}>
+                                                    <div className="flex justify-center"><AssetsMenu onView={() => openDetailsModal(a.id, 'asset')} onEdit={() => openEditAsset(a)} onUpdate={() => { setViewingItem({id: a.id, type: 'asset'}); setActionForm({amount: a.currentValue.toLocaleString(), date: getPhnomPenhNowISO().split('T')[0], note: ''}); setUpdateValueOpen(true); }} onDelete={() => { setDeleteTarget({id: a.id, type:'asset', name: a.name}); setDeleteConfirmOpen(true); }} onMarkAsSold={a.status !== 'Sold' ? () => { setViewingItem({id: a.id, type: 'asset'}); setSoldForm({salePrice: a.currentValue.toLocaleString(), saleDate: getPhnomPenhNowISO().split('T')[0]}); setMarkAsSoldOpen(true); } : undefined} /></div>
                                                 </td>
                                             </tr>
                                         ))
@@ -737,8 +823,8 @@ export const Assets: React.FC = () => {
                                                 <td className={cn(premiumTd, "text-right tabular-nums text-sm md:text-base font-medium", l.amount < 0 ? "text-red-600 dark:text-red-400" : "text-gray-400")}>{formatCurrency(l.amount, l.currency, settings.language)}</td>
                                                 <td className={cn(premiumTd, "text-right tabular-nums text-sm md:text-base font-medium", l.remaining < 0 ? "text-red-600 dark:text-red-400" : "text-red-600 dark:text-red-400")}>{formatCurrency(l.remaining, l.currency, settings.language)}</td>
                                                 <td className={cn(premiumTd, "text-right tabular-nums text-sm md:text-base font-medium", (l.amount - l.remaining) < 0 ? "text-red-600 dark:text-red-400" : "text-emerald-600 dark:text-emerald-400")}>{l.amount - l.remaining >= 0 ? '+' : ''}{formatCurrency(l.amount - l.remaining, l.currency, settings.language)}</td>
-                                                <td className={cn(premiumTd, "text-center sticky right-0 bg-inherit border-l shadow-[-4px_0_12px_rgba(0,0,0,0.03)] pr-4")} onClick={e => e.stopPropagation()}>
-                                                    <div className="flex justify-center"><AssetsMenu onView={() => openDetailsModal(l.id, 'liability')} onUpdate={() => { setViewingItem({id: l.id, type: 'liability'}); setActionForm({amount: l.remaining.toLocaleString(), date: getPhnomPenhNowISO().split('T')[0], note: ''}); setUpdateValueOpen(true); }} onDelete={() => { setDeleteTarget({id: l.id, type:'liability', name: l.name}); setDeleteConfirmOpen(true); }} onMarkAsPaidOff={l.status !== 'Paid Off' ? () => { setViewingItem({id: l.id, type: 'liability'}); setPaidOffForm({payoffDate: getPhnomPenhNowISO().split('T')[0]}); setMarkAsPaidOffOpen(true); } : undefined} /></div>
+                                                <td className={cn(premiumTd, "text-center sticky right-0 z-10 border-l border-gray-100 dark:border-dark-border shadow-[-4px_0_12px_rgba(0,0,0,0.03)] pr-4 bg-white dark:bg-[#161b22] group-hover:bg-[#f0fdf4] dark:group-hover:bg-[#19221d]")} onClick={e => e.stopPropagation()}>
+                                                    <div className="flex justify-center"><AssetsMenu onView={() => openDetailsModal(l.id, 'liability')} onEdit={() => openEditLiability(l)} onUpdate={() => { setViewingItem({id: l.id, type: 'liability'}); setActionForm({amount: l.remaining.toLocaleString(), date: getPhnomPenhNowISO().split('T')[0], note: ''}); setUpdateValueOpen(true); }} onDelete={() => { setDeleteTarget({id: l.id, type:'liability', name: l.name}); setDeleteConfirmOpen(true); }} onMarkAsPaidOff={l.status !== 'Paid Off' ? () => { setViewingItem({id: l.id, type: 'liability'}); setPaidOffForm({payoffDate: getPhnomPenhNowISO().split('T')[0]}); setMarkAsPaidOffOpen(true); } : undefined} /></div>
                                                 </td>
                                             </tr>
                                         ))
@@ -775,9 +861,9 @@ export const Assets: React.FC = () => {
                                 )}>
                                     {isAddAssetOpen ? <Landmark size={18} /> : <Activity size={18} />}
                                 </div>
-                                <Typography variant="h2" className="text-base md:text-lg">{isAddAssetOpen ? t('add_asset') : t('add_liability')}</Typography>
+                                <Typography variant="h2" className="text-base md:text-lg">{isAddAssetOpen ? (editingAsset ? t('edit_asset') : t('add_asset')) : (editingLiability ? t('edit_liability') : t('add_liability'))}</Typography>
                             </div>
-                            <button onClick={() => { setAddAssetOpen(false); setAddLiabilityOpen(false); }} className={CLASSES.buttonGhost}><X size={20}/></button>
+                            <button onClick={() => { setAddAssetOpen(false); setAddLiabilityOpen(false); resetForms(); }} className={CLASSES.buttonGhost}><X size={20}/></button>
                         </div>
                         <form onSubmit={isAddAssetOpen ? handleAssetSubmit : handleLiabSubmit} className="flex flex-col flex-1 min-h-0">
                             <div className={cn(CLASSES.modalBody, "p-4 md:p-5 space-y-5 md:space-y-4 flex-1 overflow-y-auto")}>
@@ -1037,7 +1123,7 @@ export const Assets: React.FC = () => {
                                 isKeyboardOpen ? "py-2" : "py-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
                             )}>
                                 {/* Rule: Rounded-xl for Buttons */}
-                                <button type="button" onClick={() => { setAddAssetOpen(false); setAddLiabilityOpen(false); }} className={cn(CLASSES.buttonSecondary, "flex-1 h-11 md:h-10 border-2 rounded-xl")}>{t('cancel')}</button>
+                                <button type="button" onClick={() => { setAddAssetOpen(false); setAddLiabilityOpen(false); resetForms(); }} className={cn(CLASSES.buttonSecondary, "flex-1 h-11 md:h-10 border-2 rounded-xl")}>{t('cancel')}</button>
                                 <button type="submit" className={cn(CLASSES.buttonPrimary, "flex-1 h-11 md:h-10 rounded-xl")}>
                                     {isSubmitting ? <Loader2 size={16} className="animate-spin" /> : t('save')}
                                 </button>

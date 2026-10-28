@@ -273,6 +273,8 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
         generated: 'Generated',
         save_account: 'Save Account',
         edit_account: 'Edit Account',
+        edit_asset: 'Edit Asset',
+        edit_liability: 'Edit Liability',
         new_account: 'New Account',
         member_status: 'Member Status',
         update_password: 'Update Password',
@@ -838,6 +840,8 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
         generated: 'បានបង្កើត',
         save_account: 'រក្សាទុកគណនី',
         edit_account: 'កែសម្រួលគណនី',
+        edit_asset: 'កែសម្រួលទ្រព្យសម្បត្តិ',
+        edit_liability: 'កែសម្រួលបំណុល',
         new_account: 'គណនីថ្មី',
         member_status: 'ស្ថានភាពសមាជិក',
         update_password: 'ធ្វើបច្ចុប្បន្នភាពពាក្យសម្ងាត់',
@@ -1173,9 +1177,11 @@ interface AppContextType {
     updateGoal: (g: any) => void;
     deleteGoal: (id: string) => void;
     addAsset: (a: any) => void;
+    updateAsset: (a: any) => void;
     updateAssetValuation: (id: string, value: number, date: string, note?: string) => void;
     deleteAsset: (id: string) => void;
     addLiability: (l: any) => void;
+    updateLiability: (l: any) => void;
     updateLiabilityBalance: (id: string, amount: number, date: string, note?: string) => void;
     deleteLiability: (id: string) => void;
     markAssetAsSold: (id: string, saleDate: string, salePrice: number) => void;
@@ -1638,6 +1644,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setAssets(prev => [...prev, newAsset]);
         syncWithCloudflare('assets', 'create', newAsset);
     };
+    const updateAsset = (a: any) => {
+        setAssets(prev => prev.map(item => item.id === a.id ? { ...item, ...a } : item));
+        syncWithCloudflare('assets', 'update', a);
+    };
     const updateAssetValuation = (id: string, value: number, date: string, note?: string) => {
         setAssets(prev => prev.map(a => {
             if (a.id === id) {
@@ -1662,6 +1672,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const newLiability = { ...l, id };
         setLiabilities(prev => [...prev, newLiability]);
         syncWithCloudflare('liabilities', 'create', newLiability);
+    };
+    const updateLiability = (l: any) => {
+        setLiabilities(prev => prev.map(item => item.id === l.id ? { ...item, ...l } : item));
+        syncWithCloudflare('liabilities', 'update', l);
     };
     const updateLiabilityBalance = (id: string, amount: number, date: string, note?: string) => {
         setLiabilities(prev => prev.map(l => {
@@ -1861,8 +1875,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addBudget, addBudgets, updateBudget, deleteBudget,
         addBudgetTemplate, updateBudgetTemplate, deleteBudgetTemplate,
         addGoal, updateGoal, deleteGoal,
-        addAsset, updateAssetValuation, deleteAsset, markAssetAsSold,
-        addLiability, updateLiabilityBalance, deleteLiability, markLiabilityAsPaidOff,
+        addAsset, updateAsset, updateAssetValuation, deleteAsset, markAssetAsSold,
+        addLiability, updateLiability, updateLiabilityBalance, deleteLiability, markLiabilityAsPaidOff,
         addChartOfAccount, addChartOfAccounts, updateChartOfAccount, deleteChartOfAccount, deleteChartOfAccounts,
         addUser, updateUser, deleteUser,
         addRole, updateRole, deleteRole,

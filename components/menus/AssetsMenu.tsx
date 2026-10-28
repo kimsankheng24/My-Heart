@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { MoreHorizontal, Eye, Edit2, Trash2, RefreshCw } from 'lucide-react';
 import { useApp } from '../../store';
@@ -46,15 +45,7 @@ export const AssetsMenu: React.FC<AssetsMenuProps> = ({ onView, onEdit, onUpdate
                             onClick={(e) => { e.stopPropagation(); onView(); setIsOpen(false); }}
                             className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
                         >
-                            <Eye size={14} className="text-blue-500" /> {t('view_details_action')}
-                        </button>
-                    )}
-                    {onUpdate && (
-                        <button 
-                            onClick={(e) => { e.stopPropagation(); onUpdate(); setIsOpen(false); }}
-                            className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
-                        >
-                            <RefreshCw size={14} className="text-emerald-500" /> {t('update_value')}
+                            <Eye size={14} className="text-gray-500" /> {t('view_details_action')}
                         </button>
                     )}
                     {onEdit && (
@@ -62,7 +53,15 @@ export const AssetsMenu: React.FC<AssetsMenuProps> = ({ onView, onEdit, onUpdate
                             onClick={(e) => { e.stopPropagation(); onEdit(); setIsOpen(false); }}
                             className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
                         >
-                            <Edit2 size={14} className="text-amber-500" /> {t('edit_basic_info')}
+                            <Edit2 size={14} className="text-emerald-500" /> {t('edit')}
+                        </button>
+                    )}
+                    {onUpdate && (
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onUpdate(); setIsOpen(false); }}
+                            className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+                        >
+                            <RefreshCw size={14} className="text-blue-500" /> {t('update_value')}
                         </button>
                     )}
                     {onMarkAsSold && (
