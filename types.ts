@@ -153,6 +153,7 @@ export interface Account {
   status?: AccountStatus;
   owner?: string;
   termDeposit?: TermDepositDetails;
+  isHidden?: boolean;
 }
 
 export interface Transaction {

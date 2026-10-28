@@ -202,6 +202,16 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
         adjust: 'Adjust',
         complete: 'Complete',
         delete_account_confirm: 'Delete Account?',
+        hide_account: 'Hide Account',
+        unhide_account: 'Unhide Account',
+        show_hidden: 'Show Hidden',
+        hide_hidden: 'Hide Hidden',
+        show_hidden_accounts: 'Show Hidden Accounts',
+        hide_hidden_accounts: 'Hide Hidden Accounts',
+        hidden_accounts: 'Hidden Accounts',
+        hidden: 'Hidden',
+        hide_from_main_list: 'Hide from main list',
+        hide_account_hint: 'Hidden accounts are removed from the main account overview.',
         delete_account_desc: 'Are you sure you want to delete this account? This action cannot be undone.',
         delete_account_impact_warning: 'Warning: Deleting this account will impact your historical data and financial reports. This action is irreversible.',
         currency_change_warning: 'Warning: Changing the account currency will impact your historical data and financial reports. Please ensure all balances are adjusted accordingly.',
@@ -769,6 +779,16 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
         adjust: 'កែតម្រូវ',
         complete: 'បញ្ចប់',
         delete_account_confirm: 'លុបគណនី?',
+        hide_account: 'លាក់គណនី',
+        unhide_account: 'បង្ហាញគណនីវិញ',
+        show_hidden: 'បង្ហាញគណនីដែលបានលាក់',
+        hide_hidden: 'លាក់គណនីដែលបានលាក់',
+        show_hidden_accounts: 'បង្ហាញគណនីដែលបានលាក់',
+        hide_hidden_accounts: 'លាក់គណនីដែលបានលាក់',
+        hidden_accounts: 'គណនីដែលបានលាក់',
+        hidden: 'បានលាក់',
+        hide_from_main_list: 'លាក់ពីបញ្ជីមេ',
+        hide_account_hint: 'គណនីដែលបានលាក់នឹងមិនបង្ហាញនៅលើបញ្ជីមេឡើយ។',
         delete_account_desc: 'តើអ្នកប្រាកដថាចង់លុបគណនីនេះទេ? សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ',
         delete_account_impact_warning: 'ការព្រមាន៖ ការលុបគណនីនេះនឹងប៉ះពាល់ដល់ទិន្នន័យប្រវត្តិសាស្ត្រ និងរបាយការណ៍ហិរញ្ញវត្ថុរបស់អ្នក។ សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។',
         currency_change_warning: 'ការព្រមាន៖ ការផ្លាស់ប្តូររូបិយប័ណ្ណគណនីនឹងប៉ះពាល់ដល់ទិន្នន័យប្រវត្តិសាស្ត្រ និងរបាយការណ៍ហិរញ្ញវត្ថុរបស់អ្នក។ សូមប្រាកដថាសមតុល្យទាំងអស់ត្រូវបានកែតម្រូវតាមនោះ។',
@@ -1163,6 +1183,7 @@ interface AppContextType {
     updateSettings: (s: Partial<AppSettings>) => void;
     addAccount: (a: any) => void;
     updateAccount: (a: any) => void;
+    toggleHideAccount: (id: string) => void;
     setDefaultAccount: (id: string) => void;
     deleteAccount: (id: string) => void;
     addTransaction: (t: any) => void;
@@ -1424,6 +1445,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const updateAccount = (a: any) => {
         setAccounts(prev => prev.map(item => item.id === a.id ? a : item));
         syncWithCloudflare('accounts', 'update', a);
+    };
+
+    const toggleHideAccount = (id: string) => {
+        setAccounts(prev => {
+            const acc = prev.find(item => item.id === id);
+            if (!acc) return prev;
+            const updated = { ...acc, isHidden: !acc.isHidden };
+            syncWithCloudflare('accounts', 'update', updated);
+            return prev.map(item => item.id === id ? updated : item);
+        });
     };
 
     const setDefaultAccount = (id: string) => {
@@ -1874,7 +1905,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const value = {
         currentUser, settings, accounts, transactions, budgets, goals, assets, liabilities, chartOfAccounts, budgetTemplates, users, roles,
         login, logout, t, updateSettings, can,
-        addAccount, updateAccount, setDefaultAccount, deleteAccount,
+        addAccount, updateAccount, toggleHideAccount, setDefaultAccount, deleteAccount,
         addTransaction, addTransactions, updateTransaction, deleteTransaction, deleteTransactions,
         addBudget, addBudgets, updateBudget, deleteBudget,
         addBudgetTemplate, updateBudgetTemplate, deleteBudgetTemplate,

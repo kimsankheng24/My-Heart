@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { MoreVertical, Edit2, Trash2, Scale, CheckCircle } from 'lucide-react';
+import { MoreVertical, Edit2, Trash2, Scale, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import { useApp } from '../../store';
 
 interface AccountsMenuProps {
@@ -9,9 +9,11 @@ interface AccountsMenuProps {
     onDelete?: () => void;
     onSetDefault?: () => void;
     isDefault?: boolean;
+    isHidden?: boolean;
+    onToggleHide?: () => void;
 }
 
-export const AccountsMenu: React.FC<AccountsMenuProps> = ({ onEdit, onAdjustBalance, onDelete, onSetDefault, isDefault }) => {
+export const AccountsMenu: React.FC<AccountsMenuProps> = ({ onEdit, onAdjustBalance, onDelete, onSetDefault, isDefault, isHidden, onToggleHide }) => {
     const { t } = useApp();
     const [isOpen, setIsOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -62,6 +64,22 @@ export const AccountsMenu: React.FC<AccountsMenuProps> = ({ onEdit, onAdjustBala
                             className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
                         >
                             <CheckCircle size={14} className="text-blue-500" /> {t('set_as_default')}
+                        </button>
+                    )}
+                    {onToggleHide && (
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); onToggleHide(); setIsOpen(false); }}
+                            className="w-full text-left px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 flex items-center gap-2"
+                        >
+                            {isHidden ? (
+                                <>
+                                    <Eye size={14} className="text-emerald-500" /> {t('unhide_account')}
+                                </>
+                            ) : (
+                                <>
+                                    <EyeOff size={14} className="text-gray-500" /> {t('hide_account')}
+                                </>
+                            )}
                         </button>
                     )}
                     {onDelete && (

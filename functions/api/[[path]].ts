@@ -194,6 +194,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         return {
           ...a,
           owner: a.owner || undefined,
+          isHidden: a.isHidden === 1 || a.isHidden === true,
           termDeposit
         };
       });
@@ -363,17 +364,23 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       // SYNC: accounts
       if (entity === 'accounts') {
         const termDepositJson = data.termDeposit ? JSON.stringify(data.termDeposit) : null;
+        const isHiddenInt = data.isHidden ? 1 : 0;
         if (action === 'create') {
           try {
             await env.DB.prepare(
-              'INSERT INTO accounts (id, name, type, balance, currency, note, status, owner, termDeposit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-            ).bind(data.id, data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null, termDepositJson).run();
+              'INSERT INTO accounts (id, name, type, balance, currency, note, status, owner, termDeposit, isHidden) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+            ).bind(data.id, data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null, termDepositJson, isHiddenInt).run();
           } catch (err: any) {
             try {
+              await env.DB.prepare('ALTER TABLE accounts ADD COLUMN isHidden INTEGER DEFAULT 0').run();
+            } catch (colErr) {}
+            try {
               await env.DB.prepare('ALTER TABLE accounts ADD COLUMN termDeposit TEXT').run();
+            } catch (colErr) {}
+            try {
               await env.DB.prepare(
-                'INSERT INTO accounts (id, name, type, balance, currency, note, status, owner, termDeposit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
-              ).bind(data.id, data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null, termDepositJson).run();
+                'INSERT INTO accounts (id, name, type, balance, currency, note, status, owner, termDeposit, isHidden) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+              ).bind(data.id, data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null, termDepositJson, isHiddenInt).run();
             } catch (fallbackErr) {
               await env.DB.prepare(
                 'INSERT INTO accounts (id, name, type, balance, currency, note, status, owner) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
@@ -383,14 +390,19 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         } else if (action === 'update') {
           try {
             await env.DB.prepare(
-              'UPDATE accounts SET name = ?, type = ?, balance = ?, currency = ?, note = ?, status = ?, owner = ?, termDeposit = ? WHERE id = ?'
-            ).bind(data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null, termDepositJson, data.id).run();
+              'UPDATE accounts SET name = ?, type = ?, balance = ?, currency = ?, note = ?, status = ?, owner = ?, termDeposit = ?, isHidden = ? WHERE id = ?'
+            ).bind(data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null, termDepositJson, isHiddenInt, data.id).run();
           } catch (err: any) {
             try {
+              await env.DB.prepare('ALTER TABLE accounts ADD COLUMN isHidden INTEGER DEFAULT 0').run();
+            } catch (colErr) {}
+            try {
               await env.DB.prepare('ALTER TABLE accounts ADD COLUMN termDeposit TEXT').run();
+            } catch (colErr) {}
+            try {
               await env.DB.prepare(
-                'UPDATE accounts SET name = ?, type = ?, balance = ?, currency = ?, note = ?, status = ?, owner = ?, termDeposit = ? WHERE id = ?'
-              ).bind(data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null, termDepositJson, data.id).run();
+                'UPDATE accounts SET name = ?, type = ?, balance = ?, currency = ?, note = ?, status = ?, owner = ?, termDeposit = ?, isHidden = ? WHERE id = ?'
+              ).bind(data.name, data.type, data.balance, data.currency, data.note || null, data.status || 'Active', data.owner || null, termDepositJson, isHiddenInt, data.id).run();
             } catch (fallbackErr) {
               await env.DB.prepare(
                 'UPDATE accounts SET name = ?, type = ?, balance = ?, currency = ?, note = ?, status = ?, owner = ? WHERE id = ?'

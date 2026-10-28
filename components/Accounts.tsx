@@ -6,7 +6,7 @@ import { formatCurrency, cn, CLASSES, convertToDefault, getPhnomPenhNowISO, comp
 import { AccountsMenu } from './menus/AccountsMenu';
 import {
     PlusCircle, Landmark, Wallet, ChevronDown, X, Loader2, AlertTriangle, Info, Coins,
-    CalendarSync, CheckCircle2, PiggyBank, Calendar, Percent
+    CalendarSync, CheckCircle2, PiggyBank, Calendar, Percent, Eye, EyeOff
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { NumericInput } from './NumericInput';
@@ -202,7 +202,7 @@ const KPICard: React.FC<{
 
 export const Accounts: React.FC = () => {
     const {
-        accounts, addAccount, updateAccount, setDefaultAccount, deleteAccount, addTransaction,
+        accounts, addAccount, updateAccount, toggleHideAccount, setDefaultAccount, deleteAccount, addTransaction,
         settings, can, t
     } = useApp();
     const navigate = useNavigate();
@@ -212,6 +212,8 @@ export const Accounts: React.FC = () => {
     const [filterType, setFilterType] = useState<string>('All');
     const [filterOwner, setFilterOwner] = useState<string>('All');
     const [selectedCurrency, setSelectedCurrency] = useState<string | null>(null);
+    const [showHidden, setShowHidden] = useState(false);
+    const hiddenAccountsCount = useMemo(() => accounts.filter(a => a.isHidden).length, [accounts]);
     const [isFilterMenuOpen, setIsFilterMenuOpen] = useState(false);
     const [isOwnerMenuOpen, setIsOwnerMenuOpen] = useState(false);
     const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
@@ -247,7 +249,8 @@ export const Accounts: React.FC = () => {
         termMonths: '12',
         interestRate: '7.25',
         startDate: todayISO,
-        maturityDate: computeMaturityDate(todayISO, 12)
+        maturityDate: computeMaturityDate(todayISO, 12),
+        isHidden: false
     });
     const [transferForm, setTransferForm] = useState({ fromId: '', toId: '', amount: '', date: getPhnomPenhNowISO(), note: '' });
     const [adjustForm, setAdjustForm] = useState({ balance: '', date: getPhnomPenhNowISO(), note: '' });
@@ -284,16 +287,24 @@ export const Accounts: React.FC = () => {
 
     const currencyTotals = useMemo(() => {
         const totals: Record<string, number> = {};
-        accounts.forEach(a => {
+        const sourceAccounts = (showHidden || filterType === 'Hidden') ? accounts : accounts.filter(a => !a.isHidden);
+        sourceAccounts.forEach(a => {
             totals[a.currency] = (totals[a.currency] || 0) + a.balance;
         });
         return Object.entries(totals).map(([curr, amount]) => ({ currency: curr as Currency, amount }));
-    }, [accounts]);
+    }, [accounts, showHidden, filterType]);
 
     const displayAccounts = useMemo(() => {
         let result = accounts;
-        if (filterType !== 'All') {
-            result = result.filter(a => a.type === filterType);
+        if (filterType === 'Hidden') {
+            result = result.filter(a => a.isHidden);
+        } else {
+            if (!showHidden) {
+                result = result.filter(a => !a.isHidden);
+            }
+            if (filterType !== 'All') {
+                result = result.filter(a => a.type === filterType);
+            }
         }
         if (filterOwner !== 'All') {
             result = result.filter(a => a.owner === filterOwner);
@@ -302,7 +313,7 @@ export const Accounts: React.FC = () => {
             result = result.filter(a => a.currency === selectedCurrency);
         }
         return result;
-    }, [accounts, filterType, filterOwner, selectedCurrency]);
+    }, [accounts, showHidden, filterType, filterOwner, selectedCurrency]);
 
     const groupedAccounts = useMemo<Record<string, Account[]>>(() => {
         const groups: Record<string, Account[]> = {};
@@ -353,7 +364,8 @@ export const Accounts: React.FC = () => {
             termMonths: acc.termDeposit?.termMonths ? acc.termDeposit.termMonths.toString() : '12',
             interestRate: acc.termDeposit?.interestRate ? acc.termDeposit.interestRate.toString() : '7.25',
             startDate: acc.termDeposit?.startDate || todayStr,
-            maturityDate: acc.termDeposit?.maturityDate || computeMaturityDate(todayStr, 12)
+            maturityDate: acc.termDeposit?.maturityDate || computeMaturityDate(todayStr, 12),
+            isHidden: !!acc.isHidden
         });
         setErrors({});
         setIsAddModalOpen(true);
@@ -426,7 +438,8 @@ export const Accounts: React.FC = () => {
                 status: accountForm.status,
                 note: accountForm.note,
                 owner: accountForm.owner,
-                termDeposit: termDepositPayload
+                termDeposit: termDepositPayload,
+                isHidden: accountForm.isHidden
             });
         } else {
             addAccount({
@@ -437,7 +450,8 @@ export const Accounts: React.FC = () => {
                 status: accountForm.status,
                 note: accountForm.note,
                 owner: accountForm.owner,
-                termDeposit: termDepositPayload
+                termDeposit: termDepositPayload,
+                isHidden: accountForm.isHidden
             });
         }
         setIsSubmitting(false);
@@ -554,8 +568,33 @@ export const Accounts: React.FC = () => {
         <div className={cn(CLASSES.container, "!px-2 md:!px-4 lg:!px-6 !space-y-4 pb-24")}>
             {/* Actions Header */}
             <div className="w-full py-2 -mx-2 px-2 md:-mx-4 md:px-4 lg:-mx-6 lg:px-6 border-b border-gray-200/50 dark:border-dark-border/50 transition-all duration-200 no-print">
-                <div className="w-full flex justify-end items-center">
-                    <div className="w-full md:w-auto grid grid-cols-3 gap-3">
+                <div className="w-full flex flex-wrap justify-between items-center gap-2">
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setShowHidden(prev => !prev)}
+                            className={cn(
+                                CLASSES.buttonSecondary,
+                                "h-10 px-3.5 rounded-xl border-2 shadow-sm font-semibold flex items-center gap-2 transition-all text-xs",
+                                showHidden 
+                                    ? "bg-amber-50 border-amber-200 text-amber-700 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400" 
+                                    : "text-gray-600 dark:text-gray-300"
+                            )}
+                            title={showHidden ? t('hide_hidden_accounts') : t('show_hidden_accounts')}
+                        >
+                            {showHidden ? <Eye size={14} className="text-amber-600 dark:text-amber-400" /> : <EyeOff size={14} className="text-gray-400" />}
+                            <span>{showHidden ? t('hide_hidden') : t('show_hidden')}</span>
+                            {hiddenAccountsCount > 0 && (
+                                <span className={cn(
+                                    "px-1.5 py-0.5 rounded-full text-[10px] font-bold leading-none",
+                                    showHidden ? "bg-amber-200 text-amber-900 dark:bg-amber-800 dark:text-amber-100" : "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
+                                )}>
+                                    {hiddenAccountsCount}
+                                </span>
+                            )}
+                        </button>
+                    </div>
+
+                    <div className="w-full sm:w-auto grid grid-cols-3 gap-3">
                         <div className="relative" ref={filterMenuRef}>
                             <button
                                 onClick={() => setIsFilterMenuOpen(!isFilterMenuOpen)}
@@ -567,7 +606,7 @@ export const Accounts: React.FC = () => {
                                 )}
                             >
                                 <Typography variant="body" className="font-bold text-xs truncate">
-                                    {filterType === 'All' ? t('view_all') : t(filterType.toLowerCase()) || filterType}
+                                    {filterType === 'All' ? t('view_all') : filterType === 'Hidden' ? t('hidden_accounts') : t(filterType.toLowerCase()) || filterType}
                                 </Typography>
                                 <ChevronDown size={14} className={cn("transition-transform duration-300 shrink-0", isFilterMenuOpen && "rotate-180")} />
                             </button>
@@ -589,6 +628,17 @@ export const Accounts: React.FC = () => {
                                             {t(type.toLowerCase().replace(/\s+/g, '_')) || type}
                                         </button>
                                     ))}
+                                    <button
+                                        onClick={() => { setFilterType('Hidden'); setIsFilterMenuOpen(false); }}
+                                        className={cn("w-full text-left px-4 py-2.5 text-sm font-bold transition-colors h-10 flex items-center justify-between border-t border-gray-100 dark:border-gray-800", filterType === 'Hidden' ? "text-amber-600 bg-amber-50/30" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800")}
+                                    >
+                                        <span>{t('hidden_accounts')}</span>
+                                        {hiddenAccountsCount > 0 && (
+                                            <span className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">
+                                                {hiddenAccountsCount}
+                                            </span>
+                                        )}
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -712,7 +762,11 @@ export const Accounts: React.FC = () => {
                                         key={acc.id}
                                         onClick={() => navigate(`/accounts/${acc.id}`)}
                                         // Rule: Rounded-xl for Cards
-                                        className={cn(CLASSES.card, "p-3 flex flex-col gap-2.5 hover:border-emerald-500/50 hover:shadow-lg transition-all group cursor-pointer relative rounded-xl md:rounded-xl dark:border-gray-700")}
+                                        className={cn(
+                                            CLASSES.card, 
+                                            "p-3 flex flex-col gap-2.5 hover:border-emerald-500/50 hover:shadow-lg transition-all group cursor-pointer relative rounded-xl md:rounded-xl dark:border-gray-700",
+                                            acc.isHidden && "border-dashed border-amber-300 dark:border-amber-700/60 bg-amber-50/20 dark:bg-amber-950/10"
+                                        )}
                                     >
                                         <div className="flex justify-between items-center mb-1">
                                             <div className="flex items-center gap-2.5 min-w-0">
@@ -722,8 +776,13 @@ export const Accounts: React.FC = () => {
                                                      acc.type === AccountType.TERM_DEPOSIT ? <PiggyBank size={16} className="text-emerald-600" /> : <Landmark size={16} />}
                                                 </div>
                                                 <div className="min-w-0">
-                                                    <div className="flex items-center gap-1.5">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
                                                         <Typography variant="h3" className="truncate text-sm md:text-base font-semibold group-hover:text-emerald-600 transition-colors">{acc.name}</Typography>
+                                                        {acc.isHidden && (
+                                                            <span className="text-[10px] md:text-xs font-normal px-1 py-0.5 rounded-md border bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800 flex items-center gap-1">
+                                                                <EyeOff size={10} /> {t('hidden')}
+                                                            </span>
+                                                        )}
                                                         {acc.status && acc.status !== AccountStatus.ACTIVE && (
                                                             <span className={cn(
                                                                 "text-[10px] md:text-xs font-normal px-1 py-0.5 rounded-md border",
@@ -764,6 +823,8 @@ export const Accounts: React.FC = () => {
                                                     onSetDefault={() => setDefaultAccount(acc.id)}
                                                     isDefault={acc.status === AccountStatus.DEFAULT}
                                                     onDelete={() => { setDeleteTarget(acc.id); setDeleteConfirmOpen(true); }}
+                                                    isHidden={acc.isHidden}
+                                                    onToggleHide={() => toggleHideAccount(acc.id)}
                                                 />
                                             </div>
                                         </div>
@@ -1049,6 +1110,28 @@ export const Accounts: React.FC = () => {
                                     </div>
                                     {/* Rule: Rounded-md for Textarea */}
                                     <textarea maxLength={120} className={cn(CLASSES.input, "h-16 py-2 resize-none text-sm rounded-md border-2")} value={accountForm.note} onChange={e => setAccountForm({ ...accountForm, note: e.target.value })} placeholder={t('add_details')} />
+                                </div>
+
+                                <div className="flex items-center justify-between p-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/30">
+                                    <div className="flex items-center gap-2.5">
+                                        <div className="p-1.5 rounded-lg bg-gray-100 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400">
+                                            <EyeOff size={16} />
+                                        </div>
+                                        <div>
+                                            <Typography variant="label" className="text-xs md:text-sm font-semibold text-gray-800 dark:text-gray-200 block">{t('hide_from_main_list')}</Typography>
+                                            <Typography variant="caption" className="text-[11px] text-gray-500 dark:text-gray-400 block leading-tight">{t('hide_account_hint')}</Typography>
+                                        </div>
+                                    </div>
+                                    <label className="relative inline-flex items-center cursor-pointer">
+                                        <input
+                                            type="checkbox"
+                                            checked={accountForm.isHidden}
+                                            onChange={e => setAccountForm({ ...accountForm, isHidden: e.target.checked })}
+                                            className="sr-only peer"
+                                            disabled={isSubmitting}
+                                        />
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-emerald-600"></div>
+                                    </label>
                                 </div>
                             </div>
                             <div className={cn(
