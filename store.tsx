@@ -543,6 +543,31 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
         cannot_delete_role_assigned: 'Cannot delete role because {{count}} member(s) are assigned to it. Please reassign them first.',
         cannot_delete_own_account: 'You cannot delete your own account.',
         cannot_delete_last_admin: 'Cannot delete the only administrator account.',
+        lock_account: 'Lock Account',
+        unlock_account: 'Unlock Account',
+        deny_access: 'Deny Access',
+        activate_account: 'Activate Account',
+        status_locked_desc: 'Account is temporarily locked. User cannot log in or make changes.',
+        status_denied_desc: 'All access permissions are revoked and active sessions terminated.',
+        status_active_desc: 'User has active access with assigned role permissions.',
+        confirm_lock_user: 'Are you sure you want to lock account "{{name}}"? They will be immediately logged out and unable to access the system until unlocked.',
+        confirm_deny_user: 'Are you sure you want to deny access to "{{name}}"? All system permissions will be revoked and any active sessions terminated immediately.',
+        confirm_activate_user: 'Are you sure you want to activate account "{{name}}"? Their login access and assigned role permissions will be restored.',
+        cannot_lock_own_account: 'You cannot lock your own account.',
+        cannot_deny_own_account: 'You cannot deny access to your own account.',
+        cannot_lock_last_admin: 'Cannot lock the only active administrator account.',
+        cannot_deny_last_admin: 'Cannot deny access to the only active administrator account.',
+        account_locked_success: 'Account locked successfully.',
+        account_unlocked_success: 'Account unlocked successfully.',
+        account_denied_success: 'Account access denied successfully.',
+        account_activated_success: 'Account activated successfully.',
+        filter_status_all: 'All Status',
+        filter_status_active: 'Active',
+        filter_status_locked: 'Locked',
+        filter_status_denied: 'Denied',
+        keep_current_password_hint: 'Leave blank to keep existing password',
+        account_locked_msg: 'Account is locked. Please contact your system administrator to unlock it.',
+        account_denied_msg: 'Access denied. Your account has been disabled. Please contact your system administrator.',
         admin_access_required: 'Administrator Access Required',
         admin_access_required_desc: 'Only users with the Administrator role can manage users and permissions.',
         access_denied: 'Access Denied',
@@ -1150,6 +1175,31 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
         cannot_delete_role_assigned: 'មិនអាចលុបតួនាទីនេះបានទេ ព្រោះមានសមាជិក {{count}} នាក់កំពុងប្រើប្រាស់។ សូមប្តូរតួនាទីពួកគេជាមុនសិន។',
         cannot_delete_own_account: 'អ្នកមិនអាចលុបគណនីផ្ទាល់ខ្លួនរបស់អ្នកបានទេ។',
         cannot_delete_last_admin: 'មិនអាចលុបគណនីអ្នកគ្រប់គ្រងចុងក្រោយបានទេ។',
+        lock_account: 'ចាក់សោគណនី',
+        unlock_account: 'ដោះសោគណនី',
+        deny_access: 'បដិសេធការចូលប្រើ',
+        activate_account: 'ធ្វើឱ្យគណនីសកម្ម',
+        status_locked_desc: 'គណនីត្រូវបានចាក់សោបណ្តោះអាសន្ន។ អ្នកប្រើប្រាស់មិនអាចចូល ឬផ្លាស់ប្តូរទិន្នន័យបានទេ។',
+        status_denied_desc: 'សិទ្ធិចូលប្រើប្រាស់ទាំងអស់ត្រូវបានដកហូត ហើយសម័យប្រជុំសកម្មត្រូវបានបញ្ចប់។',
+        status_active_desc: 'អ្នកប្រើប្រាស់មានសិទ្ធិចូលប្រើប្រាស់សកម្មតាមការកំណត់តួនាទី។',
+        confirm_lock_user: 'តើអ្នកប្រាកដជាចង់ចាក់សោគណនី "{{name}}" ឬទេ? ពួកគេនឹងត្រូវចាកចេញភ្លាមៗ ហើយមិនអាចចូលប្រើប្រព័ន្ធបានទេរហូតដល់ត្រូវបានដោះសោ។',
+        confirm_deny_user: 'តើអ្នកប្រាកដជាចង់បដិសេធការចូលប្រើរបស់ "{{name}}" ឬទេ? សិទ្ធិចូលប្រើប្រព័ន្ធទាំងអស់នឹងត្រូវបានដកហូត ហើយសម័យប្រជុំសកម្មទាំងអស់នឹងត្រូវបញ្ចប់ភ្លាមៗ។',
+        confirm_activate_user: 'តើអ្នកប្រាកដជាចង់ធ្វើឱ្យគណនី "{{name}}" សកម្មឡើងវិញឬទេ? ការចូលប្រើនិងសិទ្ធិតាមតួនាទីរបស់ពួកគេនឹងត្រូវបានស្តារឡើងវិញ។',
+        cannot_lock_own_account: 'អ្នកមិនអាចចាក់សោគណនីផ្ទាល់ខ្លួនរបស់អ្នកបានទេ។',
+        cannot_deny_own_account: 'អ្នកមិនអាចបដិសេធការចូលប្រើគណនីផ្ទាល់ខ្លួនរបស់អ្នកបានទេ។',
+        cannot_lock_last_admin: 'មិនអាចចាក់សោគណនីអ្នកគ្រប់គ្រងសកម្មតែមួយគត់បានទេ។',
+        cannot_deny_last_admin: 'មិនអាចបដិសេធគណនីអ្នកគ្រប់គ្រងសកម្មតែមួយគត់បានទេ។',
+        account_locked_success: 'គណនីត្រូវបានចាក់សោដោយជោគជ័យ។',
+        account_unlocked_success: 'គណនីត្រូវបានដោះសោដោយជោគជ័យ។',
+        account_denied_success: 'ការចូលប្រើគណនីត្រូវបានបដិសេធដោយជោគជ័យ។',
+        account_activated_success: 'គណនីត្រូវបានធ្វើឱ្យសកម្មដោយជោគជ័យ។',
+        filter_status_all: 'ស្ថានភាពទាំងអស់',
+        filter_status_active: 'សកម្ម',
+        filter_status_locked: 'ចាក់សោ',
+        filter_status_denied: 'បដិសេធ',
+        keep_current_password_hint: 'ទុកនៅទំនេរដើម្បីរក្សាពាក្យសម្ងាត់បច្ចុប្បន្ន',
+        account_locked_msg: 'គណនីត្រូវបានចាក់សោ។ សូមទាក់ទងអ្នកគ្រប់គ្រងប្រព័ន្ធរបស់អ្នកដើម្បីដោះសោ។',
+        account_denied_msg: 'ការចូលប្រើត្រូវបានបដិសេធ។ គណនីរបស់អ្នកត្រូវបានបិទដំណើរការ។ សូមទាក់ទងអ្នកគ្រប់គ្រងប្រព័ន្ធរបស់អ្នក។',
         admin_access_required: 'ទាមទារសិទ្ធិអ្នកគ្រប់គ្រង',
         admin_access_required_desc: 'មានតែអ្នកប្រើប្រាស់ដែលមានតួនាទីជាអ្នកគ្រប់គ្រងប៉ុណ្ណោះដែលអាចគ្រប់គ្រងអ្នកប្រើប្រាស់ និងសិទ្ធិបាន។',
         access_denied: 'ការចូលប្រើត្រូវបានបដិសេធ',
@@ -1275,6 +1325,7 @@ interface AppContextType {
     addUser: (u: any) => void;
     updateUser: (u: any) => void;
     deleteUser: (id: string) => void;
+    setUserStatus: (id: string, status: UserStatus) => void;
     addRole: (r: any) => void;
     updateRole: (r: any, oldName?: string) => void;
     deleteRole: (id: string) => void;
@@ -1315,7 +1366,19 @@ const initialCoAs: ChartOfAccount[] = [];
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [currentUser, setCurrentUser] = useState<User | null>(() => {
         const cached = localStorage.getItem('my_heart_user');
-        return cached ? JSON.parse(cached) : null;
+        if (cached) {
+            try {
+                const u = JSON.parse(cached);
+                if (u && (u.status === UserStatus.LOCKED || u.status === UserStatus.DENIED)) {
+                    localStorage.removeItem('my_heart_user');
+                    return null;
+                }
+                return u;
+            } catch (e) {
+                return null;
+            }
+        }
+        return null;
     });
     const [settings, setSettings] = useState<AppSettings>(defaultSettings);
     const [accounts, setAccounts] = useState<Account[]>(initialAccounts);
@@ -1484,6 +1547,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const can = (module: AppModuleName, action: PermissionAction) => {
         if (!currentUser) return false;
+        if (currentUser.status === UserStatus.LOCKED || currentUser.status === UserStatus.DENIED) return false;
         if (currentUser.role === 'Administrator') return true;
         const role = roles.find(r => r.name === currentUser.role);
         return role ? !!role.permissions[module]?.[action] : false;
@@ -1880,8 +1944,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         syncWithCloudflare('users', 'create', u);
     };
     const updateUser = (u: any) => {
-        setUsers(prev => prev.map(item => item.id === u.id ? u : item));
+        setUsers(prev => prev.map(item => item.id === u.id ? { ...item, ...u } : item));
         syncWithCloudflare('users', 'update', u);
+    };
+    const setUserStatus = (id: string, status: UserStatus) => {
+        setUsers(prev => prev.map(u => {
+            if (u.id === id) {
+                const updated = {
+                    ...u,
+                    status,
+                    ...(status === UserStatus.ACTIVE ? { failedLoginAttempts: 0, lockoutUntil: undefined } : {})
+                };
+                syncWithCloudflare('users', 'update', updated);
+                return updated;
+            }
+            return u;
+        }));
     };
     const deleteUser = (id: string) => {
         if (currentUser && currentUser.id === id) {
@@ -1982,7 +2060,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addAsset, updateAsset, updateAssetValuation, deleteAsset, markAssetAsSold,
         addLiability, updateLiability, updateLiabilityBalance, deleteLiability, markLiabilityAsPaidOff,
         addChartOfAccount, addChartOfAccounts, updateChartOfAccount, deleteChartOfAccount, deleteChartOfAccounts,
-        addUser, updateUser, deleteUser,
+        addUser, updateUser, deleteUser, setUserStatus,
         addRole, updateRole, deleteRole,
         updateCurrencyRate, toggleCurrencyActive, syncRates
     };

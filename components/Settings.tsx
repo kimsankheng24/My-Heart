@@ -570,6 +570,10 @@ const UserModal: React.FC<{
     onSave: (userData: any) => void;
 }> = ({ user, onClose, onSave }) => {
     const { roles, t, users, currentUser } = useApp();
+    const activeAdminCount = useMemo(() => users.filter(u => u.role === 'Administrator' && u.status === UserStatus.ACTIVE).length, [users]);
+    const isLastActiveAdmin = user?.role === 'Administrator' && user?.status === UserStatus.ACTIVE && activeAdminCount <= 1;
+    const isSelf = user?.id === currentUser?.id;
+    const isStatusDisabled = isSelf || isLastActiveAdmin;
     const [name, setName] = useState(user?.name || '');
     const [userId, setUserId] = useState(user?.id || '');
     const [password, setPassword] = useState('');
@@ -669,9 +673,10 @@ const UserModal: React.FC<{
                             <div className="space-y-1">
                                 <Typography variant="label">{user ? t('update_password') : t('password') + ' *'}</Typography>
                                 <div className="relative">
-                                    <input type="password" disabled={isSubmitting} className={cn(CLASSES.input, "pl-10 h-11 md:h-10 rounded-md border-2 focus:border-emerald-500", errors.password && CLASSES.inputError)} value={password} onChange={e => setPassword(e.target.value)} placeholder={user ? t('leave_blank_password') : '••••••••'} />
+                                    <input type="password" disabled={isSubmitting} className={cn(CLASSES.input, "pl-10 h-11 md:h-10 rounded-md border-2 focus:border-emerald-500", errors.password && CLASSES.inputError)} value={password} onChange={e => setPassword(e.target.value)} placeholder={user ? (t('keep_current_password_hint') || t('leave_blank_password')) : '••••••••'} />
                                     <Lock size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                                 </div>
+                                {user && !errors.password && <Typography variant="caption" className="text-gray-400 dark:text-gray-500 px-1 block mt-0.5">{t('keep_current_password_hint')}</Typography>}
                                 {errors.password && <Typography variant="caption" className="text-red-500 px-1 block mt-0.5">{errors.password}</Typography>}
                             </div>
                             <div className="space-y-1">
@@ -697,12 +702,36 @@ const UserModal: React.FC<{
                                 </div>
                             </div>
                             <div className="space-y-1">
-                                <Typography variant="label">{t('member_status')} * {user?.id === currentUser?.id && <span className="text-gray-400 font-normal ml-1">({t('cannot_change_own_status', { defaultValue: 'Cannot change own status' })})</span>}</Typography>
+                                <div className="flex items-center justify-between">
+                                    <Typography variant="label">{t('member_status')} *</Typography>
+                                    {isStatusDisabled && (
+                                        <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                                            {isSelf ? '(' + (t('cannot_change_own_status') || 'Cannot change own status') + ')' : '(' + t('cannot_lock_last_admin') + ')'}
+                                        </span>
+                                    )}
+                                </div>
                                 <div className="relative group">
-                                    <select required disabled={isSubmitting || user?.id === currentUser?.id} className={cn(CLASSES.select, "h-11 md:h-10 pr-10 rounded-md border-2 focus:border-emerald-500", user?.id === currentUser?.id && "bg-gray-100 dark:bg-gray-800/50 cursor-not-allowed")} value={status} onChange={e => setStatus(e.target.value as UserStatus)}>
+                                    <select required disabled={isSubmitting || isStatusDisabled} className={cn(CLASSES.select, "h-11 md:h-10 pr-10 rounded-md border-2 focus:border-emerald-500", isStatusDisabled && "bg-gray-100 dark:bg-gray-800/50 cursor-not-allowed text-gray-400")} value={status} onChange={e => setStatus(e.target.value as UserStatus)}>
                                         {Object.values(UserStatus).map(s => <option key={s} value={s}>{t(s.toLowerCase()) || s}</option>)}
                                     </select>
                                     <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none group-focus-within:text-emerald-500 transition-colors" />
+                                </div>
+                                <div className={cn(
+                                    "mt-1.5 p-2 rounded-lg border text-xs flex items-start gap-2 transition-colors",
+                                    status === UserStatus.ACTIVE
+                                        ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300"
+                                        : status === UserStatus.LOCKED
+                                            ? "bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300"
+                                            : "bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-300"
+                                )}>
+                                    {status === UserStatus.ACTIVE && <CheckCircle2 size={14} className="shrink-0 mt-0.5" />}
+                                    {status === UserStatus.LOCKED && <Lock size={14} className="shrink-0 mt-0.5" />}
+                                    {status === UserStatus.DENIED && <ShieldAlert size={14} className="shrink-0 mt-0.5" />}
+                                    <span className="leading-tight">
+                                        {status === UserStatus.ACTIVE && t('status_active_desc')}
+                                        {status === UserStatus.LOCKED && t('status_locked_desc')}
+                                        {status === UserStatus.DENIED && t('status_denied_desc')}
+                                    </span>
                                 </div>
                             </div>
                         </div>
@@ -1630,9 +1659,10 @@ const ChartOfAccountsTab: React.FC = () => {
 };
 
 const UserRoleTab: React.FC = () => {
-    const { users, roles, currentUser, addUser, updateUser, deleteUser, addRole, updateRole, deleteRole, can, t } = useApp();
+    const { users, roles, currentUser, addUser, updateUser, deleteUser, setUserStatus, addRole, updateRole, deleteRole, can, t } = useApp();
     const [activeSubTab, setActiveSubTab] = useState<'Users' | 'Roles'>('Users');
     const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState<'ALL' | UserStatus>('ALL');
 
     // Modal & Delete States
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -1649,6 +1679,16 @@ const UserRoleTab: React.FC = () => {
         blockReason?: string;
     }>({ isOpen: false, type: 'User' });
 
+    // Status Confirmation Modal State
+    const [statusModal, setStatusModal] = useState<{
+        isOpen: boolean;
+        user?: User;
+        targetStatus?: UserStatus;
+        actionType?: 'LOCK' | 'UNLOCK' | 'DENY' | 'ACTIVATE';
+        isBlocked?: boolean;
+        blockReason?: string;
+    }>({ isOpen: false });
+
     // Authorization check: Only Administrator or users with Settings edit can access
     const isAdmin = currentUser?.role === 'Administrator' || (can && can('Settings', 'edit'));
 
@@ -1661,16 +1701,73 @@ const UserRoleTab: React.FC = () => {
         return counts;
     }, [users]);
 
+    const userCounts = useMemo(() => {
+        return {
+            all: users.length,
+            active: users.filter(u => u.status === UserStatus.ACTIVE).length,
+            locked: users.filter(u => u.status === UserStatus.LOCKED).length,
+            denied: users.filter(u => u.status === UserStatus.DENIED).length,
+        };
+    }, [users]);
+
     const filteredUsers = useMemo(() => {
         const term = searchTerm.toLowerCase().trim();
-        if (!term) return users;
-        return users.filter(u =>
-            u.name.toLowerCase().includes(term) ||
-            u.id.toLowerCase().includes(term) ||
-            u.role.toLowerCase().includes(term) ||
-            (u.phone && u.phone.toLowerCase().includes(term))
-        );
-    }, [users, searchTerm]);
+        return users.filter(u => {
+            const matchesStatus = statusFilter === 'ALL' || u.status === statusFilter;
+            const matchesSearch = !term || (
+                u.name.toLowerCase().includes(term) ||
+                u.id.toLowerCase().includes(term) ||
+                u.role.toLowerCase().includes(term) ||
+                (u.phone && u.phone.toLowerCase().includes(term))
+            );
+            return matchesStatus && matchesSearch;
+        });
+    }, [users, searchTerm, statusFilter]);
+
+    const handlePromptStatusChange = (targetUser: User, targetStatus: UserStatus, actionType: 'LOCK' | 'UNLOCK' | 'DENY' | 'ACTIVATE') => {
+        const isSelf = targetUser.id === currentUser?.id;
+        const activeAdmins = users.filter(u => u.role === 'Administrator' && u.status === UserStatus.ACTIVE).length;
+        const isLastAdmin = targetUser.role === 'Administrator' && targetUser.status === UserStatus.ACTIVE && activeAdmins <= 1;
+
+        if (isSelf && (targetStatus === UserStatus.LOCKED || targetStatus === UserStatus.DENIED)) {
+            setStatusModal({
+                isOpen: true,
+                user: targetUser,
+                targetStatus,
+                actionType,
+                isBlocked: true,
+                blockReason: targetStatus === UserStatus.LOCKED ? t('cannot_lock_own_account') : t('cannot_deny_own_account')
+            });
+            return;
+        }
+
+        if (isLastAdmin && (targetStatus === UserStatus.LOCKED || targetStatus === UserStatus.DENIED)) {
+            setStatusModal({
+                isOpen: true,
+                user: targetUser,
+                targetStatus,
+                actionType,
+                isBlocked: true,
+                blockReason: targetStatus === UserStatus.LOCKED ? t('cannot_lock_last_admin') : t('cannot_deny_last_admin')
+            });
+            return;
+        }
+
+        setStatusModal({
+            isOpen: true,
+            user: targetUser,
+            targetStatus,
+            actionType,
+            isBlocked: false
+        });
+    };
+
+    const handleConfirmStatusChange = () => {
+        if (statusModal.user && statusModal.targetStatus) {
+            setUserStatus(statusModal.user.id, statusModal.targetStatus);
+        }
+        setStatusModal({ isOpen: false });
+    };
 
     const filteredRoles = useMemo(() => {
         const term = searchTerm.toLowerCase().trim();
@@ -1797,85 +1894,123 @@ const UserRoleTab: React.FC = () => {
     return (
         <div className="space-y-6 pb-24">
             {/* Top Toolbar: Subtabs + Search + Add Button */}
-            <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-                <div className="flex items-center gap-1.5 p-1 bg-gray-100 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl">
-                    <button
-                        onClick={() => setActiveSubTab('Users')}
-                        className={cn(
-                            "flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-all",
-                            activeSubTab === 'Users'
-                                ? "bg-white dark:bg-emerald-600 text-emerald-600 dark:text-white shadow-sm"
-                                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                        )}
-                    >
-                        <UserIcon size={16} />
-                        <span>{t('user_management')}</span>
-                        <span className={cn(
-                            "px-1.5 py-0.2 rounded-full text-xs font-bold",
-                            activeSubTab === 'Users'
-                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-700 dark:text-white"
-                                : "bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
-                        )}>
-                            {users.length}
-                        </span>
-                    </button>
+            <div className="flex flex-col gap-3">
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+                    <div className="flex items-center gap-1.5 p-1 bg-gray-100 dark:bg-dark-card border border-gray-200 dark:border-dark-border rounded-xl">
+                        <button
+                            onClick={() => { setActiveSubTab('Users'); setSearchTerm(''); }}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-all",
+                                activeSubTab === 'Users'
+                                    ? "bg-white dark:bg-emerald-600 text-emerald-600 dark:text-white shadow-sm"
+                                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                            )}
+                        >
+                            <UserIcon size={16} />
+                            <span>{t('user_management')}</span>
+                            <span className={cn(
+                                "px-1.5 py-0.2 rounded-full text-xs font-bold",
+                                activeSubTab === 'Users'
+                                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-700 dark:text-white"
+                                    : "bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                            )}>
+                                {users.length}
+                            </span>
+                        </button>
 
-                    <button
-                        onClick={() => setActiveSubTab('Roles')}
-                        className={cn(
-                            "flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-all",
-                            activeSubTab === 'Roles'
-                                ? "bg-white dark:bg-emerald-600 text-emerald-600 dark:text-white shadow-sm"
-                                : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-                        )}
-                    >
-                        <ShieldCheck size={16} />
-                        <span>{t('role_management')}</span>
-                        <span className={cn(
-                            "px-1.5 py-0.2 rounded-full text-xs font-bold",
-                            activeSubTab === 'Roles'
-                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-700 dark:text-white"
-                                : "bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
-                        )}>
-                            {roles.length}
-                        </span>
-                    </button>
-                </div>
-
-                <div className="flex items-center gap-2.5 w-full sm:w-auto">
-                    <div className="relative flex-1 sm:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                        <input
-                            className={cn(CLASSES.input, "pl-10 pr-8 h-10 text-sm rounded-xl w-full")}
-                            placeholder={activeSubTab === 'Users' ? t('search_users') || t('search') : t('search_roles') || t('search')}
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                        />
-                        {searchTerm && (
-                            <button
-                                onClick={() => setSearchTerm('')}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                            >
-                                <X size={14} />
-                            </button>
-                        )}
+                        <button
+                            onClick={() => { setActiveSubTab('Roles'); setSearchTerm(''); }}
+                            className={cn(
+                                "flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-all",
+                                activeSubTab === 'Roles'
+                                    ? "bg-white dark:bg-emerald-600 text-emerald-600 dark:text-white shadow-sm"
+                                    : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                            )}
+                        >
+                            <ShieldCheck size={16} />
+                            <span>{t('role_management')}</span>
+                            <span className={cn(
+                                "px-1.5 py-0.2 rounded-full text-xs font-bold",
+                                activeSubTab === 'Roles'
+                                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-700 dark:text-white"
+                                    : "bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                            )}>
+                                {roles.length}
+                            </span>
+                        </button>
                     </div>
-                    <button
-                        onClick={() => {
-                            if (activeSubTab === 'Users') {
-                                setEditingUser(undefined);
-                                setIsUserModalOpen(true);
-                            } else {
-                                setEditingRole(undefined);
-                                setIsRoleModalOpen(true);
-                            }
-                        }}
-                        className={cn(CLASSES.buttonPrimary, "h-10 px-4 rounded-xl shadow-md shadow-emerald-500/20 text-sm font-bold shrink-0 flex items-center gap-2")}
-                    >
-                        <PlusCircle size={16} />
-                        <span>{activeSubTab === 'Users' ? t('add_user') : t('add_role')}</span>
-                    </button>
+
+                    <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                        <div className="relative flex-1 sm:w-64">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+                            <input
+                                className={cn(CLASSES.input, "pl-10 pr-8 h-10 text-sm rounded-xl w-full")}
+                                placeholder={activeSubTab === 'Users' ? t('search_users') || t('search') : t('search_roles') || t('search')}
+                                value={searchTerm}
+                                onChange={e => setSearchTerm(e.target.value)}
+                            />
+                            {searchTerm && (
+                                <button
+                                    onClick={() => setSearchTerm('')}
+                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                >
+                                    <X size={14} />
+                                </button>
+                            )}
+                        </div>
+                        <button
+                            onClick={() => {
+                                if (activeSubTab === 'Users') {
+                                    setEditingUser(undefined);
+                                    setIsUserModalOpen(true);
+                                } else {
+                                    setEditingRole(undefined);
+                                    setIsRoleModalOpen(true);
+                                }
+                            }}
+                            className={cn(CLASSES.buttonPrimary, "h-10 px-4 rounded-xl shadow-md shadow-emerald-500/20 text-sm font-bold shrink-0 flex items-center gap-2")}
+                        >
+                            <PlusCircle size={16} />
+                            <span>{activeSubTab === 'Users' ? t('add_user') : t('add_role')}</span>
+                        </button>
+                    </div>
                 </div>
+
+                {/* Quick Status Filter Tabs for Users */}
+                {activeSubTab === 'Users' && (
+                    <div className="flex items-center gap-2 overflow-x-auto pb-0.5 scrollbar-none">
+                        {[
+                            { id: 'ALL' as const, label: t('filter_status_all'), count: userCounts.all, activeColor: 'bg-emerald-500 text-white' },
+                            { id: UserStatus.ACTIVE, label: t('filter_status_active'), count: userCounts.active, activeColor: 'bg-emerald-600 text-white' },
+                            { id: UserStatus.LOCKED, label: t('filter_status_locked'), count: userCounts.locked, activeColor: 'bg-amber-600 text-white' },
+                            { id: UserStatus.DENIED, label: t('filter_status_denied'), count: userCounts.denied, activeColor: 'bg-rose-600 text-white' },
+                        ].map(f => {
+                            const isSelected = statusFilter === f.id;
+                            return (
+                                <button
+                                    key={f.id}
+                                    onClick={() => setStatusFilter(f.id)}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border",
+                                        isSelected
+                                            ? (f.activeColor + " border-transparent shadow-sm")
+                                            : "bg-white dark:bg-[#161b22] text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/60"
+                                    )}
+                                >
+                                    <span>{f.label}</span>
+                                    <span className={cn(
+                                        "px-1.5 py-0.2 rounded-full text-[10px] font-bold",
+                                        isSelected
+                                            ? "bg-white/25 text-white"
+                                            : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
+                                    )}>
+                                        {f.count}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
             {/* Table Area */}
@@ -1940,14 +2075,17 @@ const UserRoleTab: React.FC = () => {
                                                 </td>
                                                 <td className={cn(premiumTd, "text-center py-3")}>
                                                     <span className={cn(
-                                                        "inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold border",
+                                                        "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold border",
                                                         u.status === UserStatus.ACTIVE
                                                             ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800"
                                                             : u.status === UserStatus.LOCKED
                                                                 ? "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800"
-                                                                : "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800"
+                                                                : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800"
                                                     )}>
-                                                        {t(u.status.toLowerCase()) || u.status}
+                                                        {u.status === UserStatus.ACTIVE && <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />}
+                                                        {u.status === UserStatus.LOCKED && <Lock size={11} className="text-amber-500 shrink-0" />}
+                                                        {u.status === UserStatus.DENIED && <ShieldAlert size={11} className="text-rose-500 shrink-0" />}
+                                                        <span>{t(u.status.toLowerCase()) || u.status}</span>
                                                     </span>
                                                 </td>
                                                 <td className={cn(premiumTd, "py-3 text-gray-600 dark:text-gray-400 font-mono text-xs")}>
@@ -1956,6 +2094,10 @@ const UserRoleTab: React.FC = () => {
                                                 <td className={cn(premiumTd, "text-center pr-4 py-3")} onClick={e => e.stopPropagation()}>
                                                     <SettingsMenu
                                                         onEdit={() => { setEditingUser(u); setIsUserModalOpen(true); }}
+                                                        onLock={!isCurrentUser && u.status === UserStatus.ACTIVE ? () => handlePromptStatusChange(u, UserStatus.LOCKED, 'LOCK') : undefined}
+                                                        onUnlock={!isCurrentUser && u.status === UserStatus.LOCKED ? () => handlePromptStatusChange(u, UserStatus.ACTIVE, 'UNLOCK') : undefined}
+                                                        onDeny={!isCurrentUser && u.status !== UserStatus.DENIED ? () => handlePromptStatusChange(u, UserStatus.DENIED, 'DENY') : undefined}
+                                                        onActivate={!isCurrentUser && u.status === UserStatus.DENIED ? () => handlePromptStatusChange(u, UserStatus.ACTIVE, 'ACTIVATE') : undefined}
                                                         onDelete={isCurrentUser ? undefined : () => handleDeleteUserPrompt(u)}
                                                     />
                                                 </td>
@@ -2107,6 +2249,106 @@ const UserRoleTab: React.FC = () => {
                                     className={cn(CLASSES.buttonDanger, "flex-1 h-10 rounded-xl font-semibold shadow-md shadow-red-500/20")}
                                 >
                                     {t('confirm')}
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Dedicated Status Confirmation Modal */}
+            {statusModal.isOpen && statusModal.user && (
+                <div className={CLASSES.modalOverlay}>
+                    <div className={cn(CLASSES.modalContent, "max-w-md rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200")}>
+                        <div className={cn(CLASSES.modalHeader, "py-3 px-5 justify-center border-b border-gray-100 dark:border-dark-border")}>
+                            <Typography variant="h2" className="text-base font-bold text-center w-full">
+                                {statusModal.isBlocked
+                                    ? t('action_not_allowed') || 'Action Not Allowed'
+                                    : statusModal.actionType === 'LOCK'
+                                        ? t('lock_account')
+                                        : statusModal.actionType === 'DENY'
+                                            ? t('deny_access')
+                                            : statusModal.actionType === 'UNLOCK'
+                                                ? t('unlock_account')
+                                                : t('activate_account')}
+                            </Typography>
+                        </div>
+                        <div className={cn(CLASSES.modalBody, "p-5 text-center space-y-4")}>
+                            {statusModal.isBlocked ? (
+                                <div className="space-y-3">
+                                    <div className="w-12 h-12 rounded-full bg-amber-50 dark:bg-amber-900/30 text-amber-600 flex items-center justify-center mx-auto">
+                                        <AlertTriangle size={24} />
+                                    </div>
+                                    <Typography variant="body" className="text-gray-700 dark:text-gray-300 text-sm">
+                                        {statusModal.blockReason}
+                                    </Typography>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <div className={cn(
+                                        "w-12 h-12 rounded-full flex items-center justify-center mx-auto",
+                                        statusModal.actionType === 'LOCK'
+                                            ? "bg-amber-50 dark:bg-amber-900/30 text-amber-600"
+                                            : statusModal.actionType === 'DENY'
+                                                ? "bg-rose-50 dark:bg-rose-900/30 text-rose-600"
+                                                : "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600"
+                                    )}>
+                                        {statusModal.actionType === 'LOCK' ? (
+                                            <Lock size={24} />
+                                        ) : statusModal.actionType === 'DENY' ? (
+                                            <ShieldAlert size={24} />
+                                        ) : (
+                                            <CheckCircle2 size={24} />
+                                        )}
+                                    </div>
+                                    <Typography variant="body" className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed">
+                                        {statusModal.actionType === 'LOCK'
+                                            ? t('confirm_lock_user', { name: statusModal.user.name })
+                                            : statusModal.actionType === 'DENY'
+                                                ? t('confirm_deny_user', { name: statusModal.user.name })
+                                                : t('confirm_activate_user', { name: statusModal.user.name })}
+                                    </Typography>
+                                    <div className="mt-2 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/60 border border-gray-200/80 dark:border-gray-700/60 text-xs text-left">
+                                        <div className="flex justify-between items-center py-0.5">
+                                            <span className="text-gray-500 dark:text-gray-400">{t('member')}</span>
+                                            <span className="font-semibold text-gray-800 dark:text-gray-200">{statusModal.user.name}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-0.5">
+                                            <span className="text-gray-500 dark:text-gray-400">{t('user_id')}</span>
+                                            <span className="font-mono font-bold text-gray-800 dark:text-gray-200">{statusModal.user.id}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center py-0.5">
+                                            <span className="text-gray-500 dark:text-gray-400">{t('role')}</span>
+                                            <span className="font-semibold text-blue-600 dark:text-blue-400">{statusModal.user.role}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        <div className={cn(CLASSES.modalFooter, "flex-row items-center gap-3 py-3 px-5 bg-gray-50/80 dark:bg-gray-800/40 border-t border-gray-100 dark:border-dark-border")}>
+                            <button
+                                onClick={() => setStatusModal({ isOpen: false })}
+                                className={cn(CLASSES.buttonSecondary, "flex-1 h-10 border-2 rounded-xl font-semibold")}
+                            >
+                                {statusModal.isBlocked ? t('close') || 'Close' : t('cancel')}
+                            </button>
+                            {!statusModal.isBlocked && (
+                                <button
+                                    onClick={handleConfirmStatusChange}
+                                    className={cn(
+                                        "flex-1 h-10 rounded-xl font-semibold shadow-md transition-all text-white",
+                                        statusModal.actionType === 'LOCK'
+                                            ? "bg-amber-600 hover:bg-amber-700 shadow-amber-600/20"
+                                            : statusModal.actionType === 'DENY'
+                                                ? "bg-rose-600 hover:bg-rose-700 shadow-rose-600/20"
+                                                : "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20"
+                                    )}
+                                >
+                                    {statusModal.actionType === 'LOCK'
+                                        ? t('lock_account')
+                                        : statusModal.actionType === 'DENY'
+                                            ? t('deny_access')
+                                            : t('activate_account')}
                                 </button>
                             )}
                         </div>

@@ -51,13 +51,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
       }
 
       if (user.status === 'Denied') {
-        return error('Access denied. Your account has been disabled.', 403);
+        return error('Access denied. Your account has been disabled. Please contact your system administrator.', 403);
       }
 
       // Check lockout status
       if (user.status === 'Locked' || (user.lockoutUntil && new Date(user.lockoutUntil) > new Date())) {
         if (user.status === 'Locked' && user.lockoutUntil && new Date(user.lockoutUntil) <= new Date()) {
-          // Auto-unlock
+          // Auto-unlock expired time lockout
           await env.DB.prepare('UPDATE users SET status = "Active", failedLoginAttempts = 0, lockoutUntil = NULL WHERE id = ?')
             .bind(user.id)
             .run();
@@ -65,8 +65,12 @@ export const onRequest: PagesFunction<Env> = async (context) => {
           user.failedLoginAttempts = 0;
           user.lockoutUntil = null;
         } else {
-          const lockoutTime = user.lockoutUntil ? new Date(user.lockoutUntil).toLocaleTimeString() : 'indefinitely';
-          return error(`Account is locked. Try again after ${lockoutTime}.`, 403);
+          if (user.lockoutUntil) {
+            const lockoutTime = new Date(user.lockoutUntil).toLocaleTimeString();
+            return error(`Account is locked. Try again after ${lockoutTime}.`, 403);
+          } else {
+            return error('Account is locked. Please contact your system administrator to unlock it.', 403);
+          }
         }
       }
 
@@ -777,24 +781,48 @@ export const onRequest: PagesFunction<Env> = async (context) => {
             data.createdDate || null
           ).run();
         } else if (action === 'update') {
-          await env.DB.prepare(
-            `UPDATE users SET 
-              name = ?, password = ?, role = ?, status = ?, failedLoginAttempts = ?, lockoutUntil = ?, lastLogin = ?, phone = ?, address = ?, createdBy = ?, createdDate = ?
-             WHERE id = ?`
-          ).bind(
-            data.name,
-            data.password,
-            data.role,
-            data.status,
-            data.failedLoginAttempts || 0,
-            data.lockoutUntil || null,
-            data.lastLogin || null,
-            data.phone || null,
-            data.address || null,
-            data.createdBy || null,
-            data.createdDate || null,
-            data.id
-          ).run();
+          const isActive = data.status === 'Active';
+          const failedAttempts = isActive ? 0 : (data.failedLoginAttempts || 0);
+          const lockout = isActive ? null : (data.lockoutUntil || null);
+
+          if (data.password) {
+            await env.DB.prepare(
+              `UPDATE users SET 
+                name = ?, password = ?, role = ?, status = ?, failedLoginAttempts = ?, lockoutUntil = ?, lastLogin = ?, phone = ?, address = ?, createdBy = ?, createdDate = ?
+               WHERE id = ?`
+            ).bind(
+              data.name,
+              data.password,
+              data.role,
+              data.status,
+              failedAttempts,
+              lockout,
+              data.lastLogin || null,
+              data.phone || null,
+              data.address || null,
+              data.createdBy || null,
+              data.createdDate || null,
+              data.id
+            ).run();
+          } else {
+            await env.DB.prepare(
+              `UPDATE users SET 
+                name = ?, role = ?, status = ?, failedLoginAttempts = ?, lockoutUntil = ?, lastLogin = ?, phone = ?, address = ?, createdBy = ?, createdDate = ?
+               WHERE id = ?`
+            ).bind(
+              data.name,
+              data.role,
+              data.status,
+              failedAttempts,
+              lockout,
+              data.lastLogin || null,
+              data.phone || null,
+              data.address || null,
+              data.createdBy || null,
+              data.createdDate || null,
+              data.id
+            ).run();
+          }
         } else if (action === 'delete') {
           await env.DB.prepare('DELETE FROM users WHERE id = ?').bind(data).run();
         }
