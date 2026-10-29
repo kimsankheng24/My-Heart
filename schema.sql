@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS settings (
     dateFormat TEXT NOT NULL DEFAULT 'dd/MM/yyyy',
     timezone TEXT NOT NULL DEFAULT 'Asia/Phnom_Penh',
     autoSyncRates INTEGER DEFAULT 0, -- 0 or 1
-    lastRatesSync TEXT
+    lastRatesSync TEXT,
+    accountOwners TEXT -- JSON string array of account owners
 );
 
 -- Accounts Table

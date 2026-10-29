@@ -6,7 +6,8 @@ import { formatCurrency, cn, CLASSES, convertToDefault, getPhnomPenhNowISO, comp
 import { AccountsMenu } from './menus/AccountsMenu';
 import {
     PlusCircle, Landmark, Wallet, ChevronDown, X, Loader2, AlertTriangle, Info, Coins,
-    CalendarSync, CheckCircle2, PiggyBank, Calendar, Percent, Eye, EyeOff, ShieldAlert
+    CalendarSync, CheckCircle2, PiggyBank, Calendar, Percent, Eye, EyeOff, ShieldAlert,
+    Users, User, Edit2, Trash2, Settings2, Check
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { NumericInput } from './NumericInput';
@@ -74,19 +75,27 @@ const CustomSelect: React.FC<{
                     </div>
 
                     <div className="flex-1 overflow-y-auto sm:overflow-auto p-2 sm:p-0">
-                        {options.map(option => (
-                            <div
-                                key={option.value}
-                                className={cn(
-                                    "px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center justify-between",
-                                    value === option.value && "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 font-medium"
-                                )}
-                                onClick={() => { onChange(option.value); setIsOpen(false); }}
-                            >
-                                <span className="truncate">{option.label}</span>
-                                {value === option.value && <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />}
-                            </div>
-                        ))}
+                        {options.map(option => {
+                            const isAddNew = option.value === '__ADD_NEW__';
+                            return (
+                                <div
+                                    key={option.value}
+                                    className={cn(
+                                        "px-3 py-2 text-sm cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors flex items-center justify-between",
+                                        isAddNew
+                                            ? "text-emerald-600 dark:text-emerald-400 font-bold border-t border-gray-100 dark:border-gray-800 bg-emerald-50/40 dark:bg-emerald-950/20"
+                                            : value === option.value && "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 font-medium"
+                                    )}
+                                    onClick={() => { onChange(option.value); setIsOpen(false); }}
+                                >
+                                    <span className="truncate flex items-center gap-1.5">
+                                        {isAddNew && <PlusCircle size={14} className="shrink-0 text-emerald-600" />}
+                                        {option.label}
+                                    </span>
+                                    {value === option.value && !isAddNew && <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />}
+                                </div>
+                            );
+                        })}
                     </div>
                 </div>
             )}
@@ -200,10 +209,348 @@ const KPICard: React.FC<{
     );
 };
 
+// Quick Add Owner Modal for on-the-fly owner creation
+const QuickAddOwnerModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onAdd: (name: string) => void;
+    existingOwners: string[];
+    t: (key: string, params?: any) => string;
+}> = ({ isOpen, onClose, onAdd, existingOwners, t }) => {
+    const [name, setName] = useState('');
+    const [error, setError] = useState('');
+
+    if (!isOpen) return null;
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const trimmed = name.trim();
+        if (!trimmed) {
+            setError(t('owner_name_required'));
+            return;
+        }
+        if (existingOwners.some(o => o.toLowerCase() === trimmed.toLowerCase())) {
+            setError(t('owner_already_exists'));
+            return;
+        }
+        onAdd(trimmed);
+        setName('');
+        setError('');
+        onClose();
+    };
+
+    return (
+        <div className={cn(CLASSES.modalOverlay, "p-4 z-[70]")}>
+            <div className={cn(CLASSES.modalContent, "max-w-sm p-5 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200")}>
+                <div className="flex items-center justify-between pb-3 border-b border-gray-100 dark:border-gray-800">
+                    <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 border border-emerald-100 dark:border-emerald-800">
+                            <PlusCircle size={18} />
+                        </div>
+                        <Typography variant="h3" className="font-bold text-base text-gray-900 dark:text-gray-100">
+                            {t('add_owner')}
+                        </Typography>
+                    </div>
+                    <button onClick={onClose} className="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800">
+                        <X size={18} />
+                    </button>
+                </div>
+                <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+                    <div className="space-y-1">
+                        <Typography variant="label">{t('owner_name')} *</Typography>
+                        <div className="relative">
+                            <input
+                                autoFocus
+                                value={name}
+                                onChange={e => { setName(e.target.value); setError(''); }}
+                                placeholder={t('enter_owner_name')}
+                                className={cn(CLASSES.input, "pl-10 h-10 rounded-xl border-2 focus:border-emerald-500", error && CLASSES.inputError)}
+                            />
+                            <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                        </div>
+                        {error && <Typography variant="caption" className="text-red-500 px-1 mt-0.5 block">{error}</Typography>}
+                    </div>
+                    <div className="flex items-center justify-end gap-2 pt-2">
+                        <button type="button" onClick={onClose} className={cn(CLASSES.buttonSecondary, "px-4 py-2 text-xs font-semibold rounded-xl")}>
+                            {t('cancel')}
+                        </button>
+                        <button type="submit" className={cn(CLASSES.buttonPrimary, "px-4 py-2 text-xs font-bold rounded-xl shadow-md")}>
+                            {t('add_owner')}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+// Comprehensive Manage Owners Modal
+const ManageOwnersModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    accountOwners: string[];
+    accounts: Account[];
+    onAddOwner: (name: string) => void;
+    onUpdateOwner: (oldName: string, newName: string) => void;
+    onDeleteOwner: (name: string) => void;
+    t: (key: string, params?: any) => string;
+}> = ({ isOpen, onClose, accountOwners, accounts, onAddOwner, onUpdateOwner, onDeleteOwner, t }) => {
+    const [newOwnerName, setNewOwnerName] = useState('');
+    const [newOwnerError, setNewOwnerError] = useState('');
+    const [editingOwner, setEditingOwner] = useState<{ oldName: string; newName: string } | null>(null);
+    const [editingError, setEditingError] = useState('');
+    const [deleteConfirm, setDeleteConfirm] = useState<{ owner: string; accountCount: number } | null>(null);
+
+    if (!isOpen) return null;
+
+    const handleAdd = (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        const trimmed = newOwnerName.trim();
+        if (!trimmed) {
+            setNewOwnerError(t('owner_name_required'));
+            return;
+        }
+        if (accountOwners.some(o => o.toLowerCase() === trimmed.toLowerCase())) {
+            setNewOwnerError(t('owner_already_exists'));
+            return;
+        }
+        onAddOwner(trimmed);
+        setNewOwnerName('');
+        setNewOwnerError('');
+    };
+
+    const handleStartEdit = (owner: string) => {
+        setEditingOwner({ oldName: owner, newName: owner });
+        setEditingError('');
+    };
+
+    const handleSaveEdit = () => {
+        if (!editingOwner) return;
+        const trimmed = editingOwner.newName.trim();
+        if (!trimmed) {
+            setEditingError(t('owner_name_required'));
+            return;
+        }
+        if (accountOwners.some(o => o.toLowerCase() === trimmed.toLowerCase() && o.toLowerCase() !== editingOwner.oldName.toLowerCase())) {
+            setEditingError(t('owner_already_exists'));
+            return;
+        }
+        onUpdateOwner(editingOwner.oldName, trimmed);
+        setEditingOwner(null);
+        setEditingError('');
+    };
+
+    const handlePromptDelete = (owner: string) => {
+        const count = accounts.filter(a => a.owner === owner).length;
+        if (count > 0) {
+            setDeleteConfirm({ owner, accountCount: count });
+        } else {
+            onDeleteOwner(owner);
+        }
+    };
+
+    const handleConfirmDelete = () => {
+        if (deleteConfirm) {
+            onDeleteOwner(deleteConfirm.owner);
+            setDeleteConfirm(null);
+        }
+    };
+
+    return (
+        <div className={cn(CLASSES.modalOverlay, "p-4 z-[65]")}>
+            <div className={cn(CLASSES.modalContent, "max-w-lg rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col max-h-[90dvh]")}>
+                {/* Header */}
+                <div className={cn(CLASSES.modalHeader, "py-3 px-5 border-b border-gray-100 dark:border-gray-800 shrink-0")}>
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 rounded-xl border border-emerald-100 dark:border-emerald-800">
+                            <Users size={18} />
+                        </div>
+                        <div>
+                            <Typography variant="h2" className="text-base font-bold text-gray-900 dark:text-gray-100">
+                                {t('manage_owners')}
+                            </Typography>
+                            <Typography variant="caption" className="text-gray-500 dark:text-gray-400 block -mt-0.5">
+                                {t('account_owners')}
+                            </Typography>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-1 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800">
+                        <X size={18} />
+                    </button>
+                </div>
+
+                <div className="p-5 overflow-y-auto space-y-5 flex-1">
+                    {/* Add Owner Input Form */}
+                    <form onSubmit={handleAdd} className="space-y-1.5">
+                        <Typography variant="label">{t('add_owner')}</Typography>
+                        <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                                <input
+                                    value={newOwnerName}
+                                    onChange={e => { setNewOwnerName(e.target.value); setNewOwnerError(''); }}
+                                    placeholder={t('enter_owner_name')}
+                                    className={cn(CLASSES.input, "pl-10 h-10 rounded-xl border-2 focus:border-emerald-500", newOwnerError && CLASSES.inputError)}
+                                />
+                                <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                            </div>
+                            <button
+                                type="submit"
+                                className={cn(CLASSES.buttonPrimary, "h-10 px-4 rounded-xl shadow-md text-xs font-bold shrink-0 flex items-center gap-1.5")}
+                            >
+                                <PlusCircle size={15} />
+                                <span>{t('add_owner')}</span>
+                            </button>
+                        </div>
+                        {newOwnerError && <Typography variant="caption" className="text-red-500 px-1 block">{newOwnerError}</Typography>}
+                    </form>
+
+                    {/* Owners List */}
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between px-1">
+                            <Typography variant="label" className="text-xs uppercase tracking-wider text-gray-500">
+                                {t('account_owners')} ({accountOwners.length})
+                            </Typography>
+                        </div>
+                        <div className="border border-gray-200/80 dark:border-gray-800 rounded-xl overflow-hidden divide-y divide-gray-100 dark:divide-gray-800/80 bg-white dark:bg-[#161b22]">
+                            {accountOwners.length === 0 ? (
+                                <div className="p-6 text-center text-gray-400 text-sm">
+                                    {t('no_records_found')}
+                                </div>
+                            ) : (
+                                accountOwners.map(owner => {
+                                    const count = accounts.filter(a => a.owner === owner).length;
+                                    const isEditing = editingOwner?.oldName === owner;
+
+                                    return (
+                                        <div key={owner} className="p-3 flex items-center justify-between gap-3 hover:bg-gray-50/60 dark:hover:bg-gray-800/30 transition-colors">
+                                            {isEditing ? (
+                                                <div className="flex-1 space-y-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <input
+                                                            autoFocus
+                                                            value={editingOwner.newName}
+                                                            onChange={e => { setEditingOwner({ ...editingOwner, newName: e.target.value }); setEditingError(''); }}
+                                                            className={cn(CLASSES.input, "h-9 text-sm rounded-lg border-2 focus:border-emerald-500 flex-1", editingError && CLASSES.inputError)}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleSaveEdit}
+                                                            className="p-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shrink-0 shadow-sm"
+                                                            title={t('save')}
+                                                        >
+                                                            <Check size={14} />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { setEditingOwner(null); setEditingError(''); }}
+                                                            className="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-300 transition-colors shrink-0"
+                                                            title={t('cancel')}
+                                                        >
+                                                            <X size={14} />
+                                                        </button>
+                                                    </div>
+                                                    {editingError && <Typography variant="caption" className="text-red-500 px-1 block">{editingError}</Typography>}
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold text-xs flex items-center justify-center shrink-0">
+                                                            {owner.charAt(0).toUpperCase()}
+                                                        </div>
+                                                        <div className="min-w-0">
+                                                            <div className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">
+                                                                {owner}
+                                                            </div>
+                                                            <div className="text-[11px] text-gray-400">
+                                                                {count === 1 ? t('owner_single_count') : t('owners_count', { count })}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleStartEdit(owner)}
+                                                            className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
+                                                            title={t('edit_owner')}
+                                                        >
+                                                            <Edit2 size={15} />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handlePromptDelete(owner)}
+                                                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                                                            title={t('delete_owner')}
+                                                        >
+                                                            <Trash2 size={15} />
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/30 flex justify-end">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className={cn(CLASSES.buttonSecondary, "px-5 py-2 text-xs font-semibold rounded-xl")}
+                    >
+                        {t('close')}
+                    </button>
+                </div>
+            </div>
+
+            {/* Sub-confirmation dialog when deleting owner with linked accounts */}
+            {deleteConfirm && (
+                <div className={cn(CLASSES.modalOverlay, "p-4 z-[75]")}>
+                    <div className={cn(CLASSES.modalContent, "max-w-md p-5 rounded-2xl shadow-2xl animate-in zoom-in-95 duration-200")}>
+                        <div className="flex items-start gap-3">
+                            <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 border border-amber-200 dark:border-amber-900 shrink-0">
+                                <AlertTriangle size={20} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <Typography variant="h3" className="font-bold text-base text-gray-900 dark:text-gray-100">
+                                    {t('delete_owner')}
+                                </Typography>
+                                <p className="mt-2 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">
+                                    {t('confirm_delete_owner', { name: deleteConfirm.owner, count: deleteConfirm.accountCount })}
+                                </p>
+                                <div className="mt-5 flex items-center justify-end gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setDeleteConfirm(null)}
+                                        className={cn(CLASSES.buttonSecondary, "px-4 py-2 text-xs font-semibold rounded-xl")}
+                                    >
+                                        {t('cancel')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={handleConfirmDelete}
+                                        className={cn(CLASSES.buttonDanger, "px-4 py-2 text-xs font-bold rounded-xl shadow-md")}
+                                    >
+                                        {t('delete')}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 export const Accounts: React.FC = () => {
     const {
         accounts, addAccount, updateAccount, toggleHideAccount, setDefaultAccount, deleteAccount, addTransaction,
-        settings, can, t
+        settings, can, t,
+        accountOwners, addAccountOwner, updateAccountOwner, deleteAccountOwner
     } = useApp();
     const navigate = useNavigate();
     const location = useLocation();
@@ -248,6 +595,8 @@ export const Accounts: React.FC = () => {
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
     const [isDeleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+    const [isManageOwnersOpen, setIsManageOwnersOpen] = useState(false);
+    const [isAddOwnerPromptOpen, setIsAddOwnerPromptOpen] = useState(false);
 
     // Form/Action States
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -263,7 +612,7 @@ export const Accounts: React.FC = () => {
         currency: settings.defaultCurrency,
         status: AccountStatus.ACTIVE,
         note: '',
-        owner: 'Kimsan',
+        owner: accountOwners[0] || 'Kimsan',
         termMonths: '12',
         interestRate: '7.25',
         startDate: todayISO,
@@ -357,7 +706,7 @@ export const Accounts: React.FC = () => {
             currency: selectedCurrency ? (selectedCurrency as Currency) : settings.defaultCurrency,
             status: AccountStatus.ACTIVE,
             note: '',
-            owner: 'Kimsan',
+            owner: accountOwners[0] || 'Kimsan',
             termMonths: '12',
             interestRate: '7.25',
             startDate: todayStr,
@@ -378,7 +727,7 @@ export const Accounts: React.FC = () => {
             currency: acc.currency as Currency,
             status: acc.status || AccountStatus.ACTIVE,
             note: acc.note || '',
-            owner: acc.owner || 'Kimsan',
+            owner: acc.owner || accountOwners[0] || 'Kimsan',
             termMonths: acc.termDeposit?.termMonths ? acc.termDeposit.termMonths.toString() : '12',
             interestRate: acc.termDeposit?.interestRate ? acc.termDeposit.interestRate.toString() : '7.25',
             startDate: acc.termDeposit?.startDate || todayStr,
@@ -677,22 +1026,37 @@ export const Accounts: React.FC = () => {
                             </button>
 
                             {isOwnerMenuOpen && (
-                                <div className="absolute left-0 top-full mt-2 w-48 bg-white dark:bg-dark-card border border-gray-200/60 dark:border-dark-border rounded-xl shadow-2xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-200 origin-top-left ring-1 ring-black/5 overflow-hidden">
+                                <div className="absolute left-0 top-full mt-2 w-56 bg-white dark:bg-dark-card border border-gray-200/60 dark:border-dark-border rounded-xl shadow-2xl z-50 py-1.5 animate-in fade-in zoom-in-95 duration-200 origin-top-left ring-1 ring-black/5 overflow-hidden">
                                     <button
                                         onClick={() => { setFilterOwner('All'); setIsOwnerMenuOpen(false); }}
-                                        className={cn("w-full text-left px-4 py-2.5 text-sm font-bold transition-colors h-10", filterOwner === 'All' ? "text-emerald-600 bg-emerald-50/30" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800")}
+                                        className={cn("w-full text-left px-4 py-2.5 text-sm font-bold transition-colors h-10 flex items-center justify-between", filterOwner === 'All' ? "text-emerald-600 bg-emerald-50/30" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800")}
                                     >
-                                        {t('all_owners', 'All Owners')}
+                                        <span>{t('all_owners', 'All Owners')}</span>
+                                        <span className="text-[11px] font-semibold text-gray-400">({accounts.length})</span>
                                     </button>
-                                    {['Kimsan', 'Kunthea', 'Sabillgate', 'Sanika', 'San-Kunthea'].map(owner => (
-                                        <button
-                                            key={owner}
-                                            onClick={() => { setFilterOwner(owner); setIsOwnerMenuOpen(false); }}
-                                            className={cn("w-full text-left px-4 py-2.5 text-sm font-bold transition-colors h-10", filterOwner === owner ? "text-emerald-600 bg-emerald-50/30" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800")}
-                                        >
-                                            {owner}
-                                        </button>
-                                    ))}
+                                    <div className="max-h-56 overflow-y-auto divide-y divide-gray-50 dark:divide-gray-800/40">
+                                        {accountOwners.map(owner => {
+                                            const count = accounts.filter(a => a.owner === owner).length;
+                                            return (
+                                                <button
+                                                    key={owner}
+                                                    onClick={() => { setFilterOwner(owner); setIsOwnerMenuOpen(false); }}
+                                                    className={cn("w-full text-left px-4 py-2.5 text-sm font-bold transition-colors h-10 flex items-center justify-between", filterOwner === owner ? "text-emerald-600 bg-emerald-50/30" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800")}
+                                                >
+                                                    <span className="truncate">{owner}</span>
+                                                    <span className="text-[11px] font-semibold text-gray-400 ml-2">({count})</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <div className="border-t border-gray-100 dark:border-gray-800 my-1"></div>
+                                    <button
+                                        onClick={() => { setIsOwnerMenuOpen(false); setIsManageOwnersOpen(true); }}
+                                        className="w-full text-left px-4 py-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors flex items-center gap-2"
+                                    >
+                                        <Settings2 size={13} />
+                                        <span>{t('manage_owners')}</span>
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -930,11 +1294,30 @@ export const Accounts: React.FC = () => {
                                         </div>
                                     )}
                                     <div className="space-y-1">
-                                        <Typography variant="label">{t('owner', 'Owner')}</Typography>
+                                        <div className="flex items-center justify-between">
+                                            <Typography variant="label">{t('owner', 'Owner')}</Typography>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsManageOwnersOpen(true)}
+                                                className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                                            >
+                                                <Settings2 size={11} />
+                                                <span>{t('manage_owners')}</span>
+                                            </button>
+                                        </div>
                                         <CustomSelect
                                             value={accountForm.owner}
-                                            onChange={val => setAccountForm({ ...accountForm, owner: val })}
-                                            options={['Kimsan', 'Kunthea', 'Sabillgate', 'Sanika', 'San-Kunthea'].map(o => ({ value: o, label: o }))}
+                                            onChange={val => {
+                                                if (val === '__ADD_NEW__') {
+                                                    setIsAddOwnerPromptOpen(true);
+                                                } else {
+                                                    setAccountForm({ ...accountForm, owner: val });
+                                                }
+                                            }}
+                                            options={[
+                                                ...accountOwners.map(o => ({ value: o, label: o })),
+                                                { value: '__ADD_NEW__', label: t('add_new_owner') }
+                                            ]}
                                             placeholder={t('select_owner', 'Select Owner')}
                                             disabled={isSubmitting}
                                             t={t}
@@ -1290,6 +1673,38 @@ export const Accounts: React.FC = () => {
                     </div>
                 </div>
             )}
+
+            {/* Manage Owners Modal */}
+            <ManageOwnersModal
+                isOpen={isManageOwnersOpen}
+                onClose={() => setIsManageOwnersOpen(false)}
+                accountOwners={accountOwners}
+                accounts={accounts}
+                onAddOwner={addAccountOwner}
+                onUpdateOwner={(oldName, newName) => {
+                    updateAccountOwner(oldName, newName);
+                    if (filterOwner === oldName) setFilterOwner(newName);
+                    if (accountForm.owner === oldName) setAccountForm(prev => ({ ...prev, owner: newName }));
+                }}
+                onDeleteOwner={(name) => {
+                    deleteAccountOwner(name);
+                    if (filterOwner === name) setFilterOwner('All');
+                    if (accountForm.owner === name) setAccountForm(prev => ({ ...prev, owner: accountOwners.find(o => o !== name) || '' }));
+                }}
+                t={t}
+            />
+
+            {/* Quick Add Owner Modal */}
+            <QuickAddOwnerModal
+                isOpen={isAddOwnerPromptOpen}
+                onClose={() => setIsAddOwnerPromptOpen(false)}
+                existingOwners={accountOwners}
+                onAdd={(name) => {
+                    addAccountOwner(name);
+                    setAccountForm(prev => ({ ...prev, owner: name }));
+                }}
+                t={t}
+            />
 
             {/* Delete Confirm */}
             {isDeleteConfirmOpen && (

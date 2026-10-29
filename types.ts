@@ -277,4 +277,5 @@ export interface AppSettings {
   timezone: string;
   autoSyncRates: boolean;
   lastRatesSync?: string;
+  accountOwners?: string[];
 }

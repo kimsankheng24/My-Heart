@@ -568,6 +568,24 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
         keep_current_password_hint: 'Leave blank to keep existing password',
         account_locked_msg: 'Account is locked. Please contact your system administrator to unlock it.',
         account_denied_msg: 'Access denied. Your account has been disabled. Please contact your system administrator.',
+        manage_owners: 'Manage Owners',
+        account_owners: 'Account Owners',
+        add_owner: 'Add Owner',
+        edit_owner: 'Edit Owner',
+        delete_owner: 'Delete Owner',
+        owner_name: 'Owner Name',
+        enter_owner_name: 'Enter owner name',
+        owner_name_required: 'Owner name cannot be empty.',
+        owner_already_exists: 'An owner with this name already exists.',
+        confirm_delete_owner: 'Are you sure you want to remove owner "{{name}}"? {{count}} account(s) will be unassigned.',
+        owner_updated_success: 'Owner updated successfully.',
+        owner_added_success: 'Owner added successfully.',
+        owner_deleted_success: 'Owner removed successfully.',
+        new_owner: 'New Owner',
+        add_new_owner: '+ Add New Owner...',
+        owners_count: '{{count}} Accounts',
+        owner_single_count: '1 Account',
+        no_accounts_assigned: '0 Accounts',
         admin_access_required: 'Administrator Access Required',
         admin_access_required_desc: 'Only users with the Administrator role can manage users and permissions.',
         access_denied: 'Access Denied',
@@ -1200,6 +1218,24 @@ const TRANSLATIONS: Record<string, Record<string, string>> = {
         keep_current_password_hint: 'ទុកនៅទំនេរដើម្បីរក្សាពាក្យសម្ងាត់បច្ចុប្បន្ន',
         account_locked_msg: 'គណនីត្រូវបានចាក់សោ។ សូមទាក់ទងអ្នកគ្រប់គ្រងប្រព័ន្ធរបស់អ្នកដើម្បីដោះសោ។',
         account_denied_msg: 'ការចូលប្រើត្រូវបានបដិសេធ។ គណនីរបស់អ្នកត្រូវបានបិទដំណើរការ។ សូមទាក់ទងអ្នកគ្រប់គ្រងប្រព័ន្ធរបស់អ្នក។',
+        manage_owners: 'គ្រប់គ្រងម្ចាស់គណនី',
+        account_owners: 'ម្ចាស់គណនី',
+        add_owner: 'បន្ថែមម្ចាស់',
+        edit_owner: 'កែសម្រួលម្ចាស់',
+        delete_owner: 'លុបម្ចាស់',
+        owner_name: 'ឈ្មោះម្ចាស់',
+        enter_owner_name: 'បញ្ចូលឈ្មោះម្ចាស់',
+        owner_name_required: 'ឈ្មោះម្ចាស់មិនអាចទទេបានទេ។',
+        owner_already_exists: 'ម្ចាស់ដែលមានឈ្មោះនេះមានរួចហើយ។',
+        confirm_delete_owner: 'តើអ្នកប្រាកដជាចង់លុបម្ចាស់ "{{name}}" ឬទេ? គណនីចំនួន {{count}} នឹងត្រូវដកចេញពីម្ចាស់នេះ។',
+        owner_updated_success: 'ម្ចាស់ត្រូវបានធ្វើបច្ចុប្បន្នភាពដោយជោគជ័យ។',
+        owner_added_success: 'ម្ចាស់ត្រូវបានបន្ថែមដោយជោគជ័យ។',
+        owner_deleted_success: 'ម្ចាស់ត្រូវបានលុបចេញដោយជោគជ័យ។',
+        new_owner: 'ម្ចាស់ថ្មី',
+        add_new_owner: '+ បន្ថែមម្ចាស់ថ្មី...',
+        owners_count: '{{count}} គណនី',
+        owner_single_count: '1 គណនី',
+        no_accounts_assigned: '0 គណនី',
         admin_access_required: 'ទាមទារសិទ្ធិអ្នកគ្រប់គ្រង',
         admin_access_required_desc: 'មានតែអ្នកប្រើប្រាស់ដែលមានតួនាទីជាអ្នកគ្រប់គ្រងប៉ុណ្ណោះដែលអាចគ្រប់គ្រងអ្នកប្រើប្រាស់ និងសិទ្ធិបាន។',
         access_denied: 'ការចូលប្រើត្រូវបានបដិសេធ',
@@ -1329,6 +1365,10 @@ interface AppContextType {
     addRole: (r: any) => void;
     updateRole: (r: any, oldName?: string) => void;
     deleteRole: (id: string) => void;
+    accountOwners: string[];
+    addAccountOwner: (name: string) => void;
+    updateAccountOwner: (oldName: string, newName: string) => void;
+    deleteAccountOwner: (name: string) => void;
     updateCurrencyRate: (c: string, r: number) => void;
     toggleCurrencyActive: (c: string, a: boolean) => void;
     syncRates: () => Promise<void>;
@@ -1346,8 +1386,11 @@ const defaultSettings: AppSettings = {
     theme: 'system',
     dateFormat: 'dd/MM/yyyy',
     timezone: 'Asia/Phnom_Penh',
-    autoSyncRates: false
+    autoSyncRates: false,
+    accountOwners: ['Kimsan', 'Kunthea', 'Sabillgate', 'Sanika', 'San-Kunthea']
 };
+
+const defaultOwners = ['Kimsan', 'Kunthea', 'Sabillgate', 'Sanika', 'San-Kunthea'];
 
 const defaultUser: User = {
     id: 'ADMIN',
@@ -1970,6 +2013,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         syncWithCloudflare('users', 'delete', id);
     };
 
+    const accountOwners = useMemo(() => {
+        const configured = settings.accountOwners && settings.accountOwners.length > 0
+            ? settings.accountOwners
+            : defaultOwners;
+        const fromAccounts = accounts.map(a => a.owner).filter((o): o is string => Boolean(o && o.trim()));
+        return Array.from(new Set([...configured, ...fromAccounts]));
+    }, [settings.accountOwners, accounts]);
+
+    const addAccountOwner = (name: string) => {
+        const trimmed = name.trim();
+        if (!trimmed) return;
+        const current = accountOwners;
+        if (current.includes(trimmed)) return;
+        const updated = [...current, trimmed];
+        updateSettings({ accountOwners: updated });
+    };
+
+    const updateAccountOwner = (oldName: string, newName: string) => {
+        const trimmedNew = newName.trim();
+        if (!trimmedNew || trimmedNew === oldName) return;
+        const current = accountOwners;
+        const updated = current.map(o => o === oldName ? trimmedNew : o);
+        if (!updated.includes(trimmedNew)) updated.push(trimmedNew);
+        updateSettings({ accountOwners: updated });
+
+        // Cascade rename to all accounts currently assigned to this owner
+        setAccounts(prev => prev.map(a => {
+            if (a.owner === oldName) {
+                const updatedAcc = { ...a, owner: trimmedNew };
+                syncWithCloudflare('accounts', 'update', updatedAcc);
+                return updatedAcc;
+            }
+            return a;
+        }));
+    };
+
+    const deleteAccountOwner = (name: string) => {
+        const current = accountOwners;
+        const updated = current.filter(o => o !== name);
+        updateSettings({ accountOwners: updated });
+
+        // Unlink owner from accounts currently assigned to this owner
+        setAccounts(prev => prev.map(a => {
+            if (a.owner === name) {
+                const updatedAcc = { ...a, owner: undefined };
+                syncWithCloudflare('accounts', 'update', updatedAcc);
+                return updatedAcc;
+            }
+            return a;
+        }));
+    };
+
     const addRole = (r: any) => {
         const id = Math.random().toString(36).substr(2, 9);
         const newRole = { ...r, id };
@@ -2062,6 +2157,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addChartOfAccount, addChartOfAccounts, updateChartOfAccount, deleteChartOfAccount, deleteChartOfAccounts,
         addUser, updateUser, deleteUser, setUserStatus,
         addRole, updateRole, deleteRole,
+        accountOwners, addAccountOwner, updateAccountOwner, deleteAccountOwner,
         updateCurrencyRate, toggleCurrencyActive, syncRates
     };
 

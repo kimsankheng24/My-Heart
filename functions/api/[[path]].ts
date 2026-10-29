@@ -141,6 +141,13 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         settingsRow = await env.DB.prepare('SELECT * FROM settings WHERE id = 1').first<any>();
       }
 
+      let accountOwners = ['Kimsan', 'Kunthea', 'Sabillgate', 'Sanika', 'San-Kunthea'];
+      if (settingsRow.accountOwners) {
+        try {
+          accountOwners = JSON.parse(settingsRow.accountOwners);
+        } catch (e) {}
+      }
+
       const settings = {
         profileName: settingsRow.profileName,
         profilePhoto: settingsRow.profilePhoto || undefined,
@@ -153,6 +160,7 @@ export const onRequest: PagesFunction<Env> = async (context) => {
         timezone: settingsRow.timezone,
         autoSyncRates: settingsRow.autoSyncRates === 1,
         lastRatesSync: settingsRow.lastRatesSync || undefined,
+        accountOwners,
       };
 
       // Helper to fetch and map table results
@@ -334,33 +342,99 @@ export const onRequest: PagesFunction<Env> = async (context) => {
 
       // SYNC: settings
       if (entity === 'settings') {
-        await env.DB.prepare(
-          `UPDATE settings SET 
-            profileName = ?, 
-            profilePhoto = ?, 
-            defaultCurrency = ?, 
-            exchangeRates = ?, 
-            activeCurrencies = ?, 
-            language = ?, 
-            theme = ?, 
-            dateFormat = ?, 
-            timezone = ?, 
-            autoSyncRates = ?, 
-            lastRatesSync = ? 
-           WHERE id = 1`
-        ).bind(
-          data.profileName,
-          data.profilePhoto || null,
-          data.defaultCurrency,
-          JSON.stringify(data.exchangeRates),
-          JSON.stringify(data.activeCurrencies),
-          data.language,
-          data.theme,
-          data.dateFormat,
-          data.timezone,
-          data.autoSyncRates ? 1 : 0,
-          data.lastRatesSync || null
-        ).run();
+        const ownersJson = JSON.stringify(data.accountOwners || ['Kimsan', 'Kunthea', 'Sabillgate', 'Sanika', 'San-Kunthea']);
+        try {
+          await env.DB.prepare(
+            `UPDATE settings SET 
+              profileName = ?, 
+              profilePhoto = ?, 
+              defaultCurrency = ?, 
+              exchangeRates = ?, 
+              activeCurrencies = ?, 
+              language = ?, 
+              theme = ?, 
+              dateFormat = ?, 
+              timezone = ?, 
+              autoSyncRates = ?, 
+              lastRatesSync = ?,
+              accountOwners = ?
+             WHERE id = 1`
+          ).bind(
+            data.profileName,
+            data.profilePhoto || null,
+            data.defaultCurrency,
+            JSON.stringify(data.exchangeRates),
+            JSON.stringify(data.activeCurrencies),
+            data.language,
+            data.theme,
+            data.dateFormat,
+            data.timezone,
+            data.autoSyncRates ? 1 : 0,
+            data.lastRatesSync || null,
+            ownersJson
+          ).run();
+        } catch (colErr) {
+          try {
+            await env.DB.prepare('ALTER TABLE settings ADD COLUMN accountOwners TEXT').run();
+            await env.DB.prepare(
+              `UPDATE settings SET 
+                profileName = ?, 
+                profilePhoto = ?, 
+                defaultCurrency = ?, 
+                exchangeRates = ?, 
+                activeCurrencies = ?, 
+                language = ?, 
+                theme = ?, 
+                dateFormat = ?, 
+                timezone = ?, 
+                autoSyncRates = ?, 
+                lastRatesSync = ?,
+                accountOwners = ?
+               WHERE id = 1`
+            ).bind(
+              data.profileName,
+              data.profilePhoto || null,
+              data.defaultCurrency,
+              JSON.stringify(data.exchangeRates),
+              JSON.stringify(data.activeCurrencies),
+              data.language,
+              data.theme,
+              data.dateFormat,
+              data.timezone,
+              data.autoSyncRates ? 1 : 0,
+              data.lastRatesSync || null,
+              ownersJson
+            ).run();
+          } catch (fallbackErr) {
+            await env.DB.prepare(
+              `UPDATE settings SET 
+                profileName = ?, 
+                profilePhoto = ?, 
+                defaultCurrency = ?, 
+                exchangeRates = ?, 
+                activeCurrencies = ?, 
+                language = ?, 
+                theme = ?, 
+                dateFormat = ?, 
+                timezone = ?, 
+                autoSyncRates = ?, 
+                lastRatesSync = ?
+               WHERE id = 1`
+            ).bind(
+              data.profileName,
+              data.profilePhoto || null,
+              data.defaultCurrency,
+              JSON.stringify(data.exchangeRates),
+              JSON.stringify(data.activeCurrencies),
+              data.language,
+              data.theme,
+              data.dateFormat,
+              data.timezone,
+              data.autoSyncRates ? 1 : 0,
+              data.lastRatesSync || null
+            ).run();
+          }
+        }
 
         return json({ success: true });
       }
